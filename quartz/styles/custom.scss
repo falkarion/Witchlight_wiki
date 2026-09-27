@@ -252,3 +252,112 @@ footer {
     margin-top: 0.4rem;
   }
 }
+
+// Passages for one player (revealed by static/for-player.js)
+.for-player:not(.revealed) {
+  display: none;
+}
+
+.for-player.revealed {
+  margin: 1.2rem 0;
+  padding: 0.8rem 1.1rem;
+  border: 1px solid var(--gold);
+  border-left: 4px solid var(--gold);
+  border-radius: 6px;
+  background: var(--highlight);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+
+  .for-player-title {
+    font-family: "Cinzel", serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.3rem;
+
+    &::before {
+      content: "✦ ";
+    }
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+  }
+}
+
+// Sidebar unlock field
+.for-player-unlock {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--lightgray);
+  font-size: 0.9rem;
+
+  .fp-label {
+    display: block;
+    font-family: "Cinzel", serif;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 0.3rem;
+  }
+
+  .fp-row {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--lightgray);
+    border-radius: 4px;
+    background: var(--light);
+    color: var(--darkgray);
+    font-family: inherit;
+  }
+
+  button {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--gold);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--gold);
+    font-family: "Cinzel", serif;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--gold);
+      color: var(--light);
+    }
+  }
+
+  .fp-who {
+    margin-bottom: 0.4rem;
+  }
+
+  .fp-error {
+    margin-top: 0.3rem;
+    color: var(--secondary);
+  }
+}
+
+// Phones: smaller site title and logo; unlock field sits below the page content
+@media (max-width: 800px) {
+  .page-title,
+  .page-title a {
+    font-size: 1.3rem !important;
+  }
+
+  .page-title::before {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 0.2rem;
+  }
+
+  .center > .for-player-unlock {
+    margin: 1.5rem 0 0.5rem;
+    max-width: 420px;
+  }
+}
