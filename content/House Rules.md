@@ -10,7 +10,7 @@ title: "House Rules"
 - **Ability scores:** point buy (27 points).
 - **Hit points:** maximum at 1st level. Each level after that, gain the fixed average for your class (d6: 4, d8: 5, d10: 6, d12: 7) plus your Constitution modifier. On D&D Beyond, set Hit Point Type to *Fixed*.
 - **Starting equipment or gold:** either option from the Player's Handbook is fine.
-- **Your purse:** whatever coin your character starts with is what they bring to the carnival, and they pay their own way. Expect a ticket to cost a few silver pieces, and games, treats and rides a handful of coppers each. Nobody needs to spend a fortune, but keep some coin to hand.
+- **Your purse:** whatever coin your character starts with is what they bring to the carnival, and they pay their own way. Expect a ticket to cost a few silver pieces, games and treats a handful of coppers, and the odd extra a silver piece or so. Nobody needs to spend a fortune, but keep some coin to hand.
 - **Books we use:** the Player's Handbook, Dungeon Master's Guide and Monster Manual (2014), and *The Wild Beyond the Witchlight*.
 - **From *The Wild Beyond the Witchlight*:** the fairy and harengon races, and the Feylost and Witchlight Hand backgrounds. You'll find them on [D&D Beyond](https://www.dndbeyond.com/sources/twbtw/character-options).
   - **Fairy:** at our table, fairies also have **Soft Landing**: you have resistance to falling damage.
