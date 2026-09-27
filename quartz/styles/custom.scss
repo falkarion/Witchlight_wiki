@@ -1,0 +1,254 @@
+@use "./variables.scss" as *;
+
+// The Wild Beyond the Witchlight: carnival-poster styling
+@font-face {
+  font-family: "Rye";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/rye/v17/r05XGLJT86YzEZ7t.woff2) format("woff2");
+}
+
+:root {
+  --plum: #3b1236;
+  --gold: #b8862b;
+  --gold-soft: #d9b56a;
+  --teal: #5f9e96;
+  --poster-red: #a8343a;
+  --parchment: #f3e7cc;
+  --frame: #b8862b;
+}
+
+:root[saved-theme="dark"] {
+  --gold: #e8bd5f;
+  --gold-soft: #f0d48f;
+  --frame: #c99a3d;
+}
+
+// Backgrounds: parchment by day, a starry carnival night by night
+body {
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(184, 134, 43, 0.12), transparent 55%),
+    radial-gradient(ellipse at 90% 100%, rgba(138, 46, 98, 0.1), transparent 60%),
+    var(--light);
+  background-attachment: fixed;
+}
+
+:root[saved-theme="dark"] body {
+  background:
+    radial-gradient(1px 1px at 12% 18%, #fff8 50%, transparent 51%),
+    radial-gradient(1px 1px at 33% 72%, #fff6 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 58% 12%, #ffe9a8aa 50%, transparent 51%),
+    radial-gradient(1px 1px at 77% 44%, #fff7 50%, transparent 51%),
+    radial-gradient(1px 1px at 88% 84%, #fff5 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 44% 38%, #cfe8ff99 50%, transparent 51%),
+    radial-gradient(1px 1px at 6% 90%, #fff6 50%, transparent 51%),
+    radial-gradient(ellipse at 15% -10%, rgba(143, 211, 200, 0.14), transparent 50%),
+    radial-gradient(ellipse at 100% 0%, rgba(138, 46, 98, 0.35), transparent 55%),
+    radial-gradient(ellipse at 50% 120%, rgba(232, 189, 95, 0.1), transparent 60%),
+    var(--light);
+  background-size:
+    300px 300px, 260px 260px, 420px 420px, 340px 340px, 280px 280px, 380px 380px, 320px 320px,
+    100% 100%, 100% 100%, 100% 100%, 100% 100%;
+  background-attachment: fixed;
+}
+
+// Site title: a painted carnival sign
+.page-title,
+.page-title a {
+  font-family: "Rye", "Cinzel", serif !important;
+  font-weight: 400;
+  line-height: 1.15;
+  color: var(--secondary) !important;
+  text-shadow: 0 1px 0 var(--gold-soft), 0 3px 10px rgba(0, 0, 0, 0.18);
+}
+
+.page-title::before {
+  content: "";
+  display: block;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 0.4rem;
+  background: url("static/icon.png") center / contain no-repeat;
+  filter: drop-shadow(0 2px 6px rgba(80, 140, 200, 0.45));
+  animation: flutter 5s ease-in-out infinite;
+}
+
+@keyframes flutter {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-5px) rotate(4deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-title::before { animation: none; }
+}
+
+// Headings
+h1.article-title {
+  font-family: "Rye", "Cinzel", serif;
+  font-weight: 400;
+  color: var(--secondary);
+  letter-spacing: 0.01em;
+}
+
+article h2 {
+  color: var(--dark);
+  border-bottom: 1px solid var(--lightgray);
+  padding-bottom: 0.2rem;
+}
+
+article h2::before {
+  content: "✦ ";
+  color: var(--gold);
+  font-size: 0.8em;
+}
+
+article h3 {
+  color: var(--secondary);
+}
+
+article p,
+article li {
+  font-size: 1.12rem;
+  line-height: 1.65;
+}
+
+a.internal {
+  background-color: transparent;
+  border-bottom: 1px dotted var(--gold);
+  border-radius: 0;
+  padding: 0;
+}
+
+a.internal:hover {
+  color: var(--gold);
+}
+
+hr {
+  border: none;
+  height: 1.2rem;
+  background: none;
+  text-align: center;
+  overflow: visible;
+
+  &::after {
+    content: "✦ ✦ ✦";
+    color: var(--gold);
+    letter-spacing: 0.8rem;
+  }
+}
+
+// Paintings get a gilded frame
+article img {
+  border: 3px solid var(--frame);
+  border-radius: 6px;
+  box-shadow: 0 0 0 5px var(--light), 0 0 0 6px var(--frame), 0 10px 28px rgba(0, 0, 0, 0.35);
+  margin: 1rem auto;
+  display: block;
+}
+
+// Transparent cut-outs (the ticket) float free, without a frame
+article img[src*="ticket"],
+article img[src*="butterfly"] {
+  border: none;
+  box-shadow: none;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.35));
+  max-width: min(520px, 100%);
+}
+
+// Front page: the flying caravans as a wide banner
+body[data-slug="index"] article .markdown-rendered > p:first-of-type img {
+  width: 100%;
+  height: 340px;
+  object-fit: cover;
+  object-position: center 58%;
+}
+
+// The flyer: a printed poster
+.callout[data-callout="flyer"] {
+  --color: var(--poster-red);
+  --border: var(--gold);
+  --bg: var(--parchment);
+  background: var(--parchment);
+  color: #3a2230;
+  border: 4px double var(--gold);
+  border-radius: 4px;
+  text-align: center;
+  padding: 1.2rem 1.5rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3), inset 0 0 60px rgba(160, 110, 40, 0.18);
+
+  .callout-title {
+    justify-content: center;
+    font-family: "Cinzel", serif;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--poster-red);
+  }
+
+  .callout-icon {
+    display: none;
+  }
+
+  h2 {
+    font-family: "Rye", serif;
+    font-weight: 400;
+    font-size: 2.1rem;
+    color: #5a1a4f;
+    border: none;
+    margin: 0.3rem 0;
+
+    &::before { content: none; }
+  }
+
+  strong { color: #7a1f3d; }
+  p, li { color: #3a2230; }
+
+  ol {
+    display: inline-block;
+    text-align: left;
+  }
+}
+
+// Rumours: overheard, not official
+.callout[data-callout="rumour"] {
+  --color: var(--teal);
+  --border: var(--gold);
+  --bg: var(--highlight);
+  border: none;
+  border-left: 3px solid var(--gold);
+  border-radius: 0 6px 6px 0;
+  font-style: italic;
+
+  .callout-icon {
+    display: none;
+  }
+
+  .callout-title,
+  .callout-title-inner,
+  .callout-title-inner p,
+  p {
+    font-size: 1.15rem;
+    font-weight: 400;
+    color: var(--darkgray);
+    line-height: 1.55;
+  }
+}
+
+// Sidebar and footer
+.explorer .folder-container,
+.explorer li a {
+  font-family: "Cinzel", serif;
+  font-size: 0.9rem;
+}
+
+footer {
+  opacity: 0.85;
+
+  &::after {
+    content: "Portions of the materials used are property of Wizards of the Coast. © Wizards of the Coast LLC.";
+    display: block;
+    font-size: 0.8rem;
+    color: var(--gray);
+    margin-top: 0.4rem;
+  }
+}
