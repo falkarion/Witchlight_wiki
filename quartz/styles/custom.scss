@@ -503,6 +503,16 @@ footer {
 }
 
 // Astrea Tarot tiles (built from the card notes by publish.py)
+.tarot-legend {
+  font-size: 0.9rem;
+  color: var(--gray);
+  margin: 0.8rem 0 0;
+
+  .tt-star-inline {
+    color: var(--gold);
+  }
+}
+
 .tarot-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
@@ -542,13 +552,15 @@ footer {
     border-color: rgba(120, 100, 190, 0.5);
   }
 
-  &.known::after {
-    content: "✦";
+  .tt-star {
     position: absolute;
-    top: 0.55rem;
-    right: 0.7rem;
+    top: 0.45rem;
+    right: 0.55rem;
+    padding: 0.1rem 0.2rem;
     color: var(--gold);
-    font-size: 0.9rem;
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: help;
   }
 
   .tt-top {
