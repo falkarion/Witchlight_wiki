@@ -9,7 +9,7 @@ These turned up overnight, pinned to every door, fence post and tavern board for
 > ## The Witchlight Carnival
 > *Returned at last, after eight long years!*
 >
-> **Marvels from a hundred worlds, gathered in a single field.**
+> **Wonders from a hundred kingdoms and a hundred worlds, gathered in a single field.**
 >
 > Thrill to the acrobats of the **Big Top**! Ride the **Carousel** that never stops! Lose yourself in the **Hall of Illusions**, glide across the lake on the **Gondola Swans**, and cheer on the fastest snails you'll ever see!
 >
