@@ -8,6 +8,7 @@ title: "House Rules"
 
 ## Building a character
 - **Ability scores:** point buy (27 points).
+- **Hit points:** maximum at 1st level. Each level after that, gain the fixed average for your class (d6: 4, d8: 5, d10: 6, d12: 7) plus your Constitution modifier. On D&D Beyond, set Hit Point Type to *Fixed*.
 - **Books we use:** the Player's Handbook, Dungeon Master's Guide and Monster Manual (2014), and *The Wild Beyond the Witchlight*.
 - **From *The Wild Beyond the Witchlight*:** the fairy and harengon races, and the Feylost and Witchlight Hand backgrounds. You'll find them on [D&D Beyond](https://www.dndbeyond.com/sources/twbtw/character-options).
   - **Fairy:** at our table, fairies also have **Soft Landing**: you have resistance to falling damage.
