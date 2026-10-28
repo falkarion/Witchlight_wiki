@@ -130,7 +130,9 @@ async function discord(env, to, text) {
     return `Discord refused the DM channel (${open.status}): ${raw.slice(0, 300) || "no reason given"}; ${who}; ${shape}; recipient ${String(id).length} digits`
   }
   const sent = await api(`/channels/${channel.id}/messages`, { content: text.slice(0, 1900), allowed_mentions: { parse: [] } })
-  return sent.ok ? "sent" : `Discord refused the message (${sent.status}): ${(await sent.text()).slice(0, 300)}`
+  // which account it went to, so the DM can check the id belongs to the right person
+  const who = channel.recipients?.map((u) => u.global_name ? `${u.global_name} (@${u.username})` : `@${u.username}`).join(", ")
+  return sent.ok ? `sent to ${who || "?"}` : `Discord refused the message (${sent.status}): ${(await sent.text()).slice(0, 300)}`
 }
 
 // inbox.py's messages: the body is signed with SITE_KEY, so only the DM's PC can send them
