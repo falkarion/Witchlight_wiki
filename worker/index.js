@@ -100,17 +100,31 @@ const clip = (s, n) => (typeof s === "string" ? s.slice(0, n) : "")
 
 // --- Discord: a direct message from the bot ("dm" or a player's name)
 async function discord(env, to, text) {
-  if (!env.DISCORD_TOKEN) return
+  if (!env.DISCORD_TOKEN) return "no DISCORD_TOKEN on this site"
   let id = to === "dm" ? notify.dm : notify.players?.[to]
   if (env.DISCORD_ONLY_DM && to !== "dm") [id, text] = [notify.dm, `*(preview, for ${to})* ${text}`]
-  if (!id) return
+  if (!id) return `no Discord id for ${to}`
   const api = (path, body) => fetch(`https://discord.com/api/v10${path}`, {
     method: "POST",
-    headers: { authorization: `Bot ${env.DISCORD_TOKEN}`, "content-type": "application/json" },
+    // Discord wants every bot to say who it is
+    headers: { authorization: `Bot ${env.DISCORD_TOKEN}`, "content-type": "application/json",
+      "user-agent": "DiscordBot (https://witchlight.falklab.workers.dev, 1.0)" },
     body: JSON.stringify(body),
   })
-  const channel = await (await api("/users/@me/channels", { recipient_id: id })).json().catch(() => null)
-  if (channel?.id) await api(`/channels/${channel.id}/messages`, { content: text.slice(0, 1900), allowed_mentions: { parse: [] } })
+  const open = await api("/users/@me/channels", { recipient_id: id })
+  const raw = await open.text()
+  const channel = (() => { try { return JSON.parse(raw) } catch { return null } })()
+  if (!channel?.id) {
+    const me = await fetch("https://discord.com/api/v10/users/@me", { headers: { authorization: `Bot ${env.DISCORD_TOKEN}`,
+      "user-agent": "DiscordBot (https://witchlight.falklab.workers.dev, 1.0)" } })
+    const who = me.ok ? `the token works (bot: ${(await me.json()).username})` : `the token is refused (${me.status})`
+    const t = env.DISCORD_TOKEN
+    const shape = `token: ${t.length} characters, ${t.split(".").length - 1} dots, ${/\s/.test(t) ? "has spaces or line breaks" : "no spaces"}` +
+      `${/^bot /i.test(t) ? ", starts with 'Bot '" : ""}${/["']/.test(t) ? ", has quotes" : ""}`
+    return `Discord refused the DM channel (${open.status}): ${raw.slice(0, 300) || "no reason given"}; ${who}; ${shape}; recipient ${String(id).length} digits`
+  }
+  const sent = await api(`/channels/${channel.id}/messages`, { content: text.slice(0, 1900), allowed_mentions: { parse: [] } })
+  return sent.ok ? "sent" : `Discord refused the message (${sent.status}): ${(await sent.text()).slice(0, 300)}`
 }
 
 // inbox.py's messages: the body is signed with SITE_KEY, so only the DM's PC can send them
@@ -119,8 +133,8 @@ async function notifyFromDM(request, env, ctx) {
   if (!same(request.headers.get("x-signature") || "", await hmac(env.SITE_KEY, body))) return json(403, { error: "Not signed." })
   const m = JSON.parse(body)
   if (m.to !== "dm" && !notify.players?.[m.to]) return json(404, { error: "No such player." })
-  ctx.waitUntil(discord(env, m.to, clip(m.text, 1900)))
-  return json(200, { ok: true })
+  // the DM's PC waits for Discord's answer, so inbox.py can say why a message didn't go out
+  return json(200, { result: await discord(env, m.to, clip(m.text, 1900)) })
 }
 
 async function sendNote(request, env, ctx, name) {
