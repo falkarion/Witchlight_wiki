@@ -544,13 +544,208 @@ footer {
   vertical-align: middle;
 }
 
-.wl-updated {
-  margin-bottom: 1rem;
-  padding: 0.3rem 0.7rem;
-  border-left: 3px solid var(--secondary);
-  background: var(--highlight);
+// the label by the page title: "✦ Not read yet", "✦ 2 changes" (jumps to the first), "✦ Not fully read yet"
+.wl-label {
+  display: inline-block;
+  margin: 0.2rem 0 0.8rem;
+  padding: 0.1rem 0.6rem;
+  border: 1px solid var(--gold);
+  border-radius: 1rem;
+  background: transparent;
+  color: var(--gold);
+  font-family: "Cinzel", serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+button.wl-label {
+  cursor: pointer;
+
+  &:hover {
+    background: var(--gold);
+    color: var(--light);
+  }
+}
+
+// paragraphs new since the player first read the page: a ✦ in the margin and a soft glow
+// (no border, no italics: nothing like the quotes on What People Say)
+.wl-changed {
+  position: relative;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(232, 189, 95, 0.24), rgba(232, 189, 95, 0.07) 75%, transparent);
+  box-shadow: 0 0 0 0.3rem rgba(232, 189, 95, 0.08);
+
+  &:not(tr)::before {
+    content: "✦";
+    position: absolute;
+    left: -1.3rem;
+    top: 0.1rem;
+    color: var(--gold);
+    font-size: 0.8rem;
+  }
+
+  // list items: the ✦ goes left of the bullet, not on it
+  &:is(li)::before {
+    left: -2.4rem;
+  }
+}
+
+// notes in the page: the quoted words get a dotted underline, a 💬 opens the notes about them
+mark.wl-quote {
+  background: none;
+  color: inherit;
+  text-decoration: underline dotted var(--secondary);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.wl-note-pin {
+  margin-left: 0.2rem;
+  padding: 0 0.25rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 0.85rem;
+  cursor: pointer;
+  vertical-align: baseline;
+
+  &:hover {
+    background: var(--highlight);
+  }
+}
+
+.wl-note-cards,
+.wl-page-notes {
+  margin: 0.4rem 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+}
+
+.wl-page-notes {
+  padding: 0.4rem 0.7rem;
+  border: 1px dashed var(--lightgray);
+  border-radius: 6px;
+
+  summary {
+    cursor: pointer;
+    color: var(--dark);
+    font-family: "Cinzel", serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+}
+
+.wl-note-card {
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--lightgray);
+  background: var(--light);
+
+  &.wl-note-target {
+    border-color: var(--secondary);
+  }
+
+  .wl-inbox-quote {
+    margin: 0.3rem 0;
+  }
+}
+
+.wl-note-gone {
+  color: var(--gray);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.wl-chip {
+  display: inline-block;
+  margin-left: 0.2rem;
+  padding: 0 0.45rem;
+  border-radius: 1rem;
+  border: 1px solid var(--lightgray);
+  color: var(--gray);
+  font-size: 0.72rem;
+  white-space: nowrap;
+
+  &.wl-chip-answered,
+  &.wl-chip-folded {
+    border-color: var(--secondary);
+    color: var(--secondary);
+  }
+}
+
+.wl-share {
+  margin-top: 0.4rem;
+  padding: 0.1rem 0.6rem;
+  border: 1px solid var(--lightgray);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--darkgray);
+  font-size: 0.8rem;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+}
+
+// the overview in the panel stays short: two lines of text, three of the answer
+.wl-inbox h4 {
+  margin: 0.4rem 0 0;
+  font-family: "Cinzel", serif;
+  font-size: 0.8rem;
   color: var(--dark);
-  font-size: 0.9rem;
+}
+
+.wl-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.wl-note-reply.wl-clamp {
+  -webkit-line-clamp: 3;
+}
+
+.wl-note-link {
+  font-weight: 600;
+}
+
+.wl-more {
+  border: none;
+  background: transparent;
+  color: var(--secondary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.wl-finished summary {
+  cursor: pointer;
+  color: var(--gray);
+  font-family: "Cinzel", serif;
+  font-size: 0.8rem;
+}
+
+.wl-inbox-who {
+  margin: 0;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--lightgray);
+  border-radius: 4px;
+
+  legend {
+    color: var(--dark);
+    padding: 0 0.2rem;
+  }
+
+  label {
+    flex-direction: row !important;
+    align-items: baseline;
+    gap: 0.4rem !important;
+    font-size: 0.88rem;
+  }
 }
 
 // room under the page's last lines, so the floating button never hides them

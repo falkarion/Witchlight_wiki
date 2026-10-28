@@ -49,7 +49,8 @@ def main():
 Answer buttons belong under every point of a section whose heading starts with "Questions".
 
 ## Questions for the tester
-- **A short question:** what does your character carry?
+- **A short question:** what does your character carry in their pockets?
+- **A new question:** where did your character sleep last night?
 - **A long question:** """ + LOREM + " " + LOREM + """
 - **A question with a list inside it:** which of these?
   - the lantern

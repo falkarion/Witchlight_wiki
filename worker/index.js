@@ -7,14 +7,16 @@
 //   POST /api/login   {passphrase}   checks it against players.json, sets the login cookie
 //   POST /api/logout                 clears it
 //   GET  /api/me                     {name} of the logged-in player, or {name: null}
-//   POST /api/inbox   {kind, page, quote, text, file?}   a note to the DM (D1: messages)
+//   POST /api/inbox   {kind, page, quote, text, shared, file?}   a note to the DM (D1: messages)
 //   PUT  /api/inbox/<id>/file        the note's picture or sound, raw (KV: FILES)
 //   GET  /api/notes                  the player's own notes, with the DM's answers
-//   GET  /api/seen                   when the player last opened each page (D1: views)
-//   POST /api/seen    {slug}         the wiki script records the page the player has open
-// The views let the wiki mark pages that changed since the player last saw them, and let
-// the DM see who has read what. The DM's PC reads
-// and answers the inbox, and reads the views, with Vault/.tools/inbox.py (wrangler d1/kv).
+//   POST /api/notes/<id>/share       a private note becomes shared (never back)
+//   GET  /api/page-notes?slug=…      the notes to show in a page: own, and others' shared ones
+//   GET  /api/reads                  per page: first opened, the paragraphs read (D1: reads)
+//   POST /api/read    {slug, blocks} paragraphs that have been on the player's screen
+// The reads let the wiki mark what a player hasn't read yet, paragraph by paragraph, and let
+// the DM see who has read what. The DM's PC reads and answers the inbox, and reads the
+// reads, with Vault/.tools/inbox.py (wrangler d1/kv).
 //
 // players.json (written by publish.py) holds, per player, an HMAC of the passphrase keyed
 // with SITE_KEY (a secret), their build's folder and their own page. Never the passphrase.
@@ -101,12 +103,12 @@ async function sendNote(request, env, name) {
   const created = new Date().toISOString()
   const id = `${created.replace(/[-:.TZ]/g, "").slice(0, 14)}-${crypto.randomUUID().slice(0, 8)}`
   await env.DB.prepare(
-    `INSERT INTO messages (id, player, created, kind, page_slug, page_title, quote, text, file_name, file_type, file_size, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO messages (id, player, created, kind, page_slug, page_title, quote, text, file_name, file_type, file_size, status, shared)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(id, name, created, KINDS.includes(m.kind) ? m.kind : "other", clip(m.page?.slug, 200), clip(m.page?.title, 200),
       clip(m.quote, 2000), text, file ? clip(file.name, 200) : null, file ? clip(file.type, 100) : null,
-      file ? Number(file.size) : null, file ? "uploading" : "new")
+      file ? Number(file.size) : null, file ? "uploading" : "new", m.shared === true ? 1 : 0)
     .run()
   return json(200, { id })
 }
@@ -121,28 +123,88 @@ async function sendFile(request, env, name, id) {
   return json(200, { ok: true })
 }
 
-async function mySeen(env, name) {
-  const { results } = await env.DB.prepare("SELECT slug, seen FROM views WHERE player = ?").bind(name).all()
-  return json(200, { seen: Object.fromEntries(results.map((r) => [r.slug, r.seen])) })
-}
-
-async function markSeen(request, env, name) {
-  const { slug } = await request.json().catch(() => ({}))
-  if (typeof slug !== "string" || !slug || slug.length > 200) return json(400, { error: "Which page?" })
-  await env.DB.prepare("INSERT INTO views (player, slug, seen) VALUES (?, ?, ?) ON CONFLICT (player, slug) DO UPDATE SET seen = excluded.seen")
-    .bind(name, slug, new Date().toISOString())
-    .run()
-  return json(200, { ok: true })
+async function shareNote(env, name, id) {
+  const { meta } = await env.DB.prepare("UPDATE messages SET shared = 1 WHERE id = ? AND player = ?").bind(id, name).run()
+  return meta.changes ? json(200, { ok: true }) : json(404, { error: "Not one of your notes." })
 }
 
 async function myNotes(env, name) {
   const { results } = await env.DB.prepare(
-    `SELECT id, created, kind, page_title, quote, text, file_name, status, reply, replied
-     FROM messages WHERE player = ? AND status != 'uploading' ORDER BY created DESC LIMIT 50`,
+    `SELECT id, created, kind, page_slug, page_title, quote, text, file_name, status, reply, replied, shared
+     FROM messages WHERE player = ? AND status != 'uploading' ORDER BY created DESC LIMIT 500`,
   )
     .bind(name)
     .all()
   return json(200, { notes: results })
+}
+
+// --- notes in the page ---------------------------------------------------------------------
+// Quotes are compared without any whitespace and in lower case, on the page's article text: a
+// selection and the built page then agree however tags and line breaks fall between words.
+const squash = (s) => String(s || "").toLowerCase().replace(/\s+/g, "")
+const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " }
+
+function articleText(html) {
+  const m = html.match(/<article[^>]*>([\s\S]*?)<\/article>/)
+  return (m ? m[1] : "")
+    .replace(/<(script|style|svg|button)[\s\S]*?<\/\1>/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (all, e) =>
+      e[0] === "#" ? String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : ENTITIES[e.toLowerCase()] ?? all,
+    )
+}
+
+// The page as this player's own build has it, squashed; null when their build hasn't got it.
+async function pageFor(request, env, dir, slug) {
+  const res = await env.ASSETS.fetch(new Request(new URL(`/${dir}/${slug === "index" ? "" : slug}`, request.url)))
+  return res.status === 200 ? squash(articleText(await res.text())) : null
+}
+
+// The player's own notes on a page, and the other players' shared notes on it that this player
+// may see: only when their own version of the page has the page and the quoted text, so a shared
+// note never carries a passage someone else can't read.
+async function pageNotes(request, env, name, slug) {
+  if (!slug || slug.length > 200) return json(400, { error: "Which page?" })
+  const { results } = await env.DB.prepare(
+    `SELECT id, player, created, kind, quote, text, file_name, status, reply, replied, shared
+     FROM messages WHERE page_slug = ? AND status != 'uploading' AND (player = ? OR shared = 1) ORDER BY created`,
+  )
+    .bind(slug, name)
+    .all()
+  let mine = null
+  const notes = []
+  for (const n of results) {
+    if (n.player !== name) {
+      if (mine === null) mine = (await pageFor(request, env, accounts(env)[name].dir, slug)) ?? ""
+      if (!mine || (n.quote && !mine.includes(squash(n.quote)))) continue
+      n.file_name = null
+    }
+    notes.push({ ...n, mine: n.player === name })
+  }
+  return json(200, { notes })
+}
+
+// --- reading --------------------------------------------------------------------------------
+// The wiki script reports the paragraphs (fingerprints) that have been on screen; a page is read
+// when all of its paragraphs are. Opening a page without reading anything records `first`.
+async function myReads(env, name) {
+  const { results } = await env.DB.prepare("SELECT slug, first, blocks FROM reads WHERE player = ?").bind(name).all()
+  return json(200, { reads: Object.fromEntries(results.map((r) => [r.slug, { first: r.first, blocks: JSON.parse(r.blocks) }])) })
+}
+
+async function markRead(request, env, name) {
+  const { slug, blocks } = await request.json().catch(() => ({}))
+  if (typeof slug !== "string" || !slug || slug.length > 200) return json(400, { error: "Which page?" })
+  const ids = (Array.isArray(blocks) ? blocks : []).filter((b) => typeof b === "string" && /^[0-9a-f]{8}$/.test(b)).slice(0, 2000)
+  const row = await env.DB.prepare("SELECT first, blocks FROM reads WHERE player = ? AND slug = ?").bind(name, slug).first()
+  const merged = [...new Set([...(row ? JSON.parse(row.blocks) : []), ...ids])].slice(-5000)
+  await env.DB.prepare(
+    `INSERT INTO reads (player, slug, first, blocks) VALUES (?, ?, ?, ?)
+     ON CONFLICT (player, slug) DO UPDATE SET blocks = excluded.blocks`,
+  )
+    .bind(name, slug, row ? row.first : new Date().toISOString(), JSON.stringify(merged))
+    .run()
+  return json(200, { ok: true })
 }
 
 // --- the builds -----------------------------------------------------------------------------
@@ -182,8 +244,11 @@ export default {
       const file = path.match(/^\/api\/inbox\/([\w-]+)\/file$/)
       if (file && request.method === "PUT") return sendFile(request, env, name, file[1])
       if (path === "/api/notes" && request.method === "GET") return myNotes(env, name)
-      if (path === "/api/seen" && request.method === "GET") return mySeen(env, name)
-      if (path === "/api/seen" && request.method === "POST") return markSeen(request, env, name)
+      const share = path.match(/^\/api\/notes\/([\w-]+)\/share$/)
+      if (share && request.method === "POST") return shareNote(env, name, share[1])
+      if (path === "/api/page-notes" && request.method === "GET") return pageNotes(request, env, name, url.searchParams.get("slug"))
+      if (path === "/api/reads" && request.method === "GET") return myReads(env, name)
+      if (path === "/api/read" && request.method === "POST") return markRead(request, env, name)
       return json(404, { error: "Not here." })
     }
     if (request.method !== "GET" && request.method !== "HEAD") return json(405, { error: "Only reading is possible here." })
