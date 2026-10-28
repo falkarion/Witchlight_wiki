@@ -27,7 +27,7 @@ id = "93a83f8cacff428ab6342b7ff45f01f9"
 [env.preview]
 name = "witchlight-preview"
 workers_dev = true
-vars = { TEST_DIR = "tester" }
+vars = { TEST_DIR = "tester", DISCORD_ONLY_DM = "1" }
 
 [env.preview.assets]
 directory = "./dist"

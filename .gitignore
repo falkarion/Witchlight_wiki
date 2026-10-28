@@ -18,7 +18,10 @@ quartz/cli/tui/dist/
 # the built sites and the server's player list (made by publish.py; build/ is in .git/info/exclude: Quartz skips git-ignored files)
 dist/
 worker/players.json
+worker/notify.json
 # the preview site's test login (made by inbox.py setup --preview)
 .preview-login
 # when each page last changed, per player (publish.py; local only: it would show how many private pages each player has)
 page-history.json
+# when each player was last told on Discord what is new (inbox.py announce)
+announced.json

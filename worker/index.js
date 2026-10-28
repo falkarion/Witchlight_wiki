@@ -14,6 +14,10 @@
 //   GET  /api/page-notes?slug=…      the notes to show in a page: own, and others' shared ones
 //   GET  /api/reads                  per page: first opened, the paragraphs read (D1: reads)
 //   POST /api/read    {slug, blocks} paragraphs that have been on the player's screen
+//   POST /api/notify  {to, text}     a Discord message from the DM's PC (inbox.py), signed with SITE_KEY
+// A new note sends the DM a Discord message; inbox.py sends players theirs (answers, new pages).
+// Messages go out as direct messages from the campaign's private bot (DISCORD_TOKEN secret) to the
+// ids in notify.json (written by publish.py). The preview (DISCORD_ONLY_DM) sends everything to the DM.
 // The reads let the wiki mark what a player hasn't read yet, paragraph by paragraph, and let
 // the DM see who has read what. The DM's PC reads and answers the inbox, and reads the
 // reads, with Vault/.tools/inbox.py (wrangler d1/kv).
@@ -23,6 +27,7 @@
 // The preview site (wrangler.toml [env.preview]) also has a test login, "Tester", from its
 // own TEST_LOGIN secret; it sees the build named by TEST_DIR. The live site has no test login.
 import players from "./players.json"
+import notify from "./notify.json"
 
 const COOKIE = "wl"
 const LOGIN_DAYS = 400
@@ -93,7 +98,32 @@ const logout = () => json(200, { ok: true }, { "set-cookie": `${COOKIE}=; Path=/
 // --- the inbox ------------------------------------------------------------------------------
 const clip = (s, n) => (typeof s === "string" ? s.slice(0, n) : "")
 
-async function sendNote(request, env, name) {
+// --- Discord: a direct message from the bot ("dm" or a player's name)
+async function discord(env, to, text) {
+  if (!env.DISCORD_TOKEN) return
+  let id = to === "dm" ? notify.dm : notify.players?.[to]
+  if (env.DISCORD_ONLY_DM && to !== "dm") [id, text] = [notify.dm, `*(preview, for ${to})* ${text}`]
+  if (!id) return
+  const api = (path, body) => fetch(`https://discord.com/api/v10${path}`, {
+    method: "POST",
+    headers: { authorization: `Bot ${env.DISCORD_TOKEN}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  const channel = await (await api("/users/@me/channels", { recipient_id: id })).json().catch(() => null)
+  if (channel?.id) await api(`/channels/${channel.id}/messages`, { content: text.slice(0, 1900), allowed_mentions: { parse: [] } })
+}
+
+// inbox.py's messages: the body is signed with SITE_KEY, so only the DM's PC can send them
+async function notifyFromDM(request, env, ctx) {
+  const body = await request.text()
+  if (!same(request.headers.get("x-signature") || "", await hmac(env.SITE_KEY, body))) return json(403, { error: "Not signed." })
+  const m = JSON.parse(body)
+  if (m.to !== "dm" && !notify.players?.[m.to]) return json(404, { error: "No such player." })
+  ctx.waitUntil(discord(env, m.to, clip(m.text, 1900)))
+  return json(200, { ok: true })
+}
+
+async function sendNote(request, env, ctx, name) {
   const m = await request.json().catch(() => null)
   if (!m) return json(400, { error: "Not a message." })
   const text = clip(m.text, 20000).trim()
@@ -110,6 +140,10 @@ async function sendNote(request, env, name) {
       clip(m.quote, 2000), text, file ? clip(file.name, 200) : null, file ? clip(file.type, 100) : null,
       file ? Number(file.size) : null, file ? "uploading" : "new", m.shared === true ? 1 : 0)
     .run()
+  const what = KINDS.includes(m.kind) ? m.kind : "note"
+  const on = clip(m.page?.title, 200)
+  ctx.waitUntil(discord(env, "dm", `📬 **${name}** sent a ${what}${on ? ` on “${on}”` : ""}${file ? " (with a file)" : ""}` +
+    `${m.shared === true ? ", shared with the others" : ""}:\n> ${clip(text, 300).replace(/\n+/g, "\n> ")}\nSay “check the inbox” to fetch it.`))
   return json(200, { id })
 }
 
@@ -231,16 +265,17 @@ async function page(request, env, dir) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url)
     const path = url.pathname
     if (path.startsWith("/api/")) {
       if (path === "/api/login" && request.method === "POST") return login(request, env)
       if (path === "/api/logout" && request.method === "POST") return logout()
+      if (path === "/api/notify" && request.method === "POST") return notifyFromDM(request, env, ctx)
       const name = await viewer(request, env)
       if (path === "/api/me") return json(200, { name, page: name ? accounts(env)[name].page : null })
       if (!name) return json(401, { error: "Log in with your passphrase first." })
-      if (path === "/api/inbox" && request.method === "POST") return sendNote(request, env, name)
+      if (path === "/api/inbox" && request.method === "POST") return sendNote(request, env, ctx, name)
       const file = path.match(/^\/api\/inbox\/([\w-]+)\/file$/)
       if (file && request.method === "PUT") return sendFile(request, env, name, file[1])
       if (path === "/api/notes" && request.method === "GET") return myNotes(env, name)
