@@ -271,6 +271,8 @@
 
   function showLabel(visit) {
     document.querySelectorAll(".wl-label, .wl-mark-read, .wl-steps").forEach((el) => el.remove())
+    document.body.classList.remove("wl-reading")
+    stickHead()
     if (!visit || !visit.label) return
     // The label leads somewhere: with changes, to them (‹ › step through them in page order, round
     // again); when only some paragraphs aren't read yet, to those (from where the reader is now).
@@ -332,7 +334,19 @@
     const title = document.querySelector("h1.article-title")
     if (title) title.after(label, ...extra, mark)
     else visit.article.prepend(label, ...extra, mark)
+
+    document.body.classList.add("wl-reading")
+    stickHead()
   }
+
+  // While a page has a reading label, its header (title, label, arrows) stays at the top of the
+  // screen, so stepping never scrolls the controls away; once stuck, the breadcrumbs and the date
+  // fold away to keep it small.
+  function stickHead() {
+    const head = document.querySelector(".page-header")
+    if (head) head.classList.toggle("wl-stuck", document.body.classList.contains("wl-reading") && head.getBoundingClientRect().top <= 1 && window.scrollY > 0)
+  }
+  window.addEventListener("scroll", stickHead, { passive: true })
 
   // A player can count pages as read without scrolling through them: this page (by its label),
   // or every page at once (in "Your notes"). Every paragraph the page has counts, folded ones too.

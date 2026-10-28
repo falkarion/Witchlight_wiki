@@ -720,6 +720,44 @@ footer {
   }
 }
 
+// while a page has a reading label, its header stays at the top (static/for-player.js › stickHead)
+body.wl-reading .page-header {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+
+  &.wl-stuck {
+    margin: 0 -1rem;
+    padding: 0.4rem 1rem 0.1rem;
+    background: color-mix(in srgb, var(--light) 92%, transparent);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 6px 12px -10px rgba(0, 0, 0, 0.35);
+
+    .breadcrumb-container,
+    .content-meta,
+    .tags {
+      display: none;
+    }
+
+    h1.article-title {
+      margin: 0;
+      font-size: 1.4rem;
+    }
+
+    .wl-label,
+    .wl-steps,
+    .wl-mark-read {
+      margin-top: 0.2rem;
+      margin-bottom: 0.3rem;
+    }
+  }
+}
+
+// a stepped-to paragraph lands below the stuck header, not under it
+body.wl-reading article * {
+  scroll-margin-top: 7rem;
+}
+
 // a paragraph a link or a step just brought into view glows for a moment
 .wl-target {
   animation: wl-target 2.2s ease-out;
