@@ -93,8 +93,9 @@ body {
 .wl-sky-4 > i { opacity: 0.55; }
 .wl-sky-2 > i { opacity: 0.4; }
 
-// a cloud's sway is a slow bob; a seed's is a tumble
-.wl-cloud > b, .wl-cloud-far > b { --sway: translateY(6px); }
+// a cloud's sway is a slow bob that rocks a hair (under a degree: invisible, but a real tilt keeps
+// Firefox from snapping the slow movement to whole pixels); a seed's is a tumble
+.wl-cloud > b, .wl-cloud-far > b { --sway: translateY(6px) rotate(0.8deg); }
 .wl-mote > b { --sway: translateX(18px) rotate(14deg); }
 
 // by night: no clouds, the seeds become stars that glow and twinkle
@@ -135,12 +136,12 @@ body {
 }
 
 @keyframes wl-path {
-  from { transform: translate(var(--x0), var(--y0)) rotate(0.01deg); }
-  to { transform: translate(var(--x1), var(--y1)) rotate(0.01deg); }
+  from { transform: translate(var(--x0), var(--y0)) rotate(0.3deg); }
+  to { transform: translate(var(--x1), var(--y1)) rotate(0.3deg); }
 }
 @keyframes wl-sway {
-  from { transform: rotate(0.01deg); }
-  to { transform: var(--sway) rotate(0.01deg); }
+  from { transform: rotate(-0.4deg); }
+  to { transform: var(--sway); }
 }
 @keyframes wl-aurora {
   0% { transform: translateX(-6vw) skewX(-6deg) scaleY(1); }
