@@ -1,0 +1,45 @@
+# The player wiki on Cloudflare: a Worker (worker/) in front of one built site per audience (dist/).
+# Build: python ../Vault/.tools/publish.py   Test: npx.cmd wrangler dev   Deploy (after the DM's OK): npx.cmd wrangler deploy
+# Set up once: python ../Vault/.tools/inbox.py setup
+name = "witchlight"
+main = "worker/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "witchlight-inbox"
+database_id = "409dc972-edee-4ccc-963e-d7960f2a2b50"
+migrations_dir = "worker/migrations"
+
+[[kv_namespaces]]
+binding = "FILES"
+id = "93a83f8cacff428ab6342b7ff45f01f9"
+
+# The preview: the same builds at witchlight-preview.falklab.workers.dev, to check before publishing.
+# Its own inbox (test notes never reach the real one) and a test login (TEST_LOGIN secret, only here).
+# Deploy: npx.cmd wrangler deploy --env preview   Set up once: python ../Vault/.tools/inbox.py setup --preview
+[env.preview]
+name = "witchlight-preview"
+workers_dev = true
+vars = { TEST_DIR = "tester" }
+
+[env.preview.assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = true
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "witchlight-preview-inbox"
+database_id = "39a1b577-8c7c-43d0-a554-0896fb0faa97"
+migrations_dir = "worker/migrations"
+
+[[env.preview.kv_namespaces]]
+binding = "FILES"
+id = "3eaf183104b140ac9c90def34d8712ca"

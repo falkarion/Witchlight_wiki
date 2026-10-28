@@ -6,7 +6,7 @@ configuration:
   enablePopovers: true
   analytics: null
   locale: en-US
-  baseUrl: falkarion.github.io/Witchlight_wiki
+  baseUrl: witchlight.falklab.workers.dev
   ignorePatterns:
     - private
     - templates

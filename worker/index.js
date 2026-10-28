@@ -1,0 +1,193 @@
+// The Witchlight wiki's server (a Cloudflare Worker in front of the built sites).
+//
+// publish.py builds the wiki once per audience into dist/<audience>/: "public" and one per
+// player. This Worker runs before every request (run_worker_first) and serves a visitor
+// the public build and a logged-in player their own build, so a page with someone else's
+// secrets is never served to them. It also keeps the players' inbox:
+//   POST /api/login   {passphrase}   checks it against players.json, sets the login cookie
+//   POST /api/logout                 clears it
+//   GET  /api/me                     {name} of the logged-in player, or {name: null}
+//   POST /api/inbox   {kind, page, quote, text, file?}   a note to the DM (D1: messages)
+//   PUT  /api/inbox/<id>/file        the note's picture or sound, raw (KV: FILES)
+//   GET  /api/notes                  the player's own notes, with the DM's answers
+//   GET  /api/seen                   when the player last opened each page (D1: views)
+//   POST /api/seen    {slug}         the wiki script records the page the player has open
+// The views let the wiki mark pages that changed since the player last saw them, and let
+// the DM see who has read what. The DM's PC reads
+// and answers the inbox, and reads the views, with Vault/.tools/inbox.py (wrangler d1/kv).
+//
+// players.json (written by publish.py) holds, per player, an HMAC of the passphrase keyed
+// with SITE_KEY (a secret), their build's folder and their own page. Never the passphrase.
+// The preview site (wrangler.toml [env.preview]) also has a test login, "Tester", from its
+// own TEST_LOGIN secret; it sees the build named by TEST_DIR. The live site has no test login.
+import players from "./players.json"
+
+const COOKIE = "wl"
+const LOGIN_DAYS = 400
+const MAX_FILE = 15 * 1024 * 1024
+const KINDS = ["correction", "answer", "question", "upload", "other"]
+
+const enc = new TextEncoder()
+const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("")
+
+async function hmac(secret, text) {
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"])
+  return hex(await crypto.subtle.sign("HMAC", key, enc.encode(text)))
+}
+
+function same(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
+const json = (status, body, headers = {}) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store", ...headers } })
+
+// --- login ----------------------------------------------------------------------------------
+function accounts(env) {
+  if (!env.TEST_LOGIN) return players
+  return { ...players, Tester: { hash: env.TEST_LOGIN, dir: env.TEST_DIR || "public", page: null } }
+}
+
+// The cookie is name.expiry.signature; the signature covers the passphrase's fingerprint, so
+// changing a player's passphrase logs out every device that used the old one.
+async function sign(env, name, exp) {
+  return hmac(env.SITE_KEY, `${name}|${exp}|${accounts(env)[name].hash}`)
+}
+
+async function viewer(request, env) {
+  const raw = (request.headers.get("cookie") || "").split(/;\s*/).find((c) => c.startsWith(COOKIE + "="))
+  if (!raw) return null
+  const [name64, exp, sig] = raw.slice(COOKIE.length + 1).split(".")
+  let name
+  try {
+    name = decodeURIComponent(atob(name64))
+  } catch {
+    return null
+  }
+  if (!accounts(env)[name] || !(Number(exp) > Date.now() / 1000)) return null
+  return same(sig, await sign(env, name, exp)) ? name : null
+}
+
+async function login(request, env) {
+  const { passphrase } = await request.json().catch(() => ({}))
+  if (typeof passphrase !== "string" || !passphrase.trim()) return json(400, { error: "Enter your passphrase." })
+  const fingerprint = await hmac(env.SITE_KEY, passphrase.trim())
+  const all = accounts(env)
+  const name = Object.keys(all).find((n) => same(all[n].hash, fingerprint))
+  if (!name) return json(403, { error: "That key doesn't fit." })
+  const exp = String(Math.floor(Date.now() / 1000) + LOGIN_DAYS * 86400)
+  const value = `${btoa(encodeURIComponent(name))}.${exp}.${await sign(env, name, exp)}`
+  const secure = new URL(request.url).protocol === "https:" ? "; Secure" : ""
+  return json(200, { name, page: all[name].page }, {
+    "set-cookie": `${COOKIE}=${value}; Path=/; Max-Age=${LOGIN_DAYS * 86400}; HttpOnly; SameSite=Lax${secure}`,
+  })
+}
+
+const logout = () => json(200, { ok: true }, { "set-cookie": `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax` })
+
+// --- the inbox ------------------------------------------------------------------------------
+const clip = (s, n) => (typeof s === "string" ? s.slice(0, n) : "")
+
+async function sendNote(request, env, name) {
+  const m = await request.json().catch(() => null)
+  if (!m) return json(400, { error: "Not a message." })
+  const text = clip(m.text, 20000).trim()
+  const file = m.file && typeof m.file === "object" ? m.file : null
+  if (!text && !file) return json(400, { error: "Write something or add a file first." })
+  if (file && !(Number(file.size) > 0 && Number(file.size) <= MAX_FILE)) return json(413, { error: "That file is too big (15 MB at most)." })
+  const created = new Date().toISOString()
+  const id = `${created.replace(/[-:.TZ]/g, "").slice(0, 14)}-${crypto.randomUUID().slice(0, 8)}`
+  await env.DB.prepare(
+    `INSERT INTO messages (id, player, created, kind, page_slug, page_title, quote, text, file_name, file_type, file_size, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(id, name, created, KINDS.includes(m.kind) ? m.kind : "other", clip(m.page?.slug, 200), clip(m.page?.title, 200),
+      clip(m.quote, 2000), text, file ? clip(file.name, 200) : null, file ? clip(file.type, 100) : null,
+      file ? Number(file.size) : null, file ? "uploading" : "new")
+    .run()
+  return json(200, { id })
+}
+
+async function sendFile(request, env, name, id) {
+  const row = await env.DB.prepare("SELECT file_size, status FROM messages WHERE id = ? AND player = ?").bind(id, name).first()
+  if (!row || row.status !== "uploading") return json(404, { error: "No note waiting for this file." })
+  const size = Number(request.headers.get("content-length") || 0)
+  if (!size || size > MAX_FILE) return json(413, { error: "That file is too big (15 MB at most)." })
+  await env.FILES.put(`file:${id}`, request.body, { metadata: { player: name } })
+  await env.DB.prepare("UPDATE messages SET file_key = ?, status = 'new' WHERE id = ?").bind(`file:${id}`, id).run()
+  return json(200, { ok: true })
+}
+
+async function mySeen(env, name) {
+  const { results } = await env.DB.prepare("SELECT slug, seen FROM views WHERE player = ?").bind(name).all()
+  return json(200, { seen: Object.fromEntries(results.map((r) => [r.slug, r.seen])) })
+}
+
+async function markSeen(request, env, name) {
+  const { slug } = await request.json().catch(() => ({}))
+  if (typeof slug !== "string" || !slug || slug.length > 200) return json(400, { error: "Which page?" })
+  await env.DB.prepare("INSERT INTO views (player, slug, seen) VALUES (?, ?, ?) ON CONFLICT (player, slug) DO UPDATE SET seen = excluded.seen")
+    .bind(name, slug, new Date().toISOString())
+    .run()
+  return json(200, { ok: true })
+}
+
+async function myNotes(env, name) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, created, kind, page_title, quote, text, file_name, status, reply, replied
+     FROM messages WHERE player = ? AND status != 'uploading' ORDER BY created DESC LIMIT 50`,
+  )
+    .bind(name)
+    .all()
+  return json(200, { notes: results })
+}
+
+// --- the builds -----------------------------------------------------------------------------
+async function page(request, env, dir) {
+  const url = new URL(request.url)
+  const inner = new URL(`/${dir}${url.pathname}${url.search}`, url)
+  let res = await env.ASSETS.fetch(new Request(inner, request))
+  if (res.status >= 300 && res.status < 400) {
+    // the asset server redirects within the build (e.g. /x/index.html -> /x/): keep the visitor's address
+    const to = new URL(res.headers.get("location"), inner)
+    if (to.pathname.startsWith(`/${dir}/`) || to.pathname === `/${dir}`) {
+      return new Response(null, { status: res.status, headers: { location: to.pathname.slice(dir.length + 1) || "/" } })
+    }
+    return res
+  }
+  if (res.status === 404) {
+    const missing = await env.ASSETS.fetch(new Request(new URL(`/${dir}/404.html`, url)))
+    res = new Response(missing.body, { status: 404, headers: missing.headers })
+  }
+  const out = new Response(res.body, res)
+  out.headers.set("cache-control", "private, no-cache")
+  out.headers.set("vary", "cookie")
+  return out
+}
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url)
+    const path = url.pathname
+    if (path.startsWith("/api/")) {
+      if (path === "/api/login" && request.method === "POST") return login(request, env)
+      if (path === "/api/logout" && request.method === "POST") return logout()
+      const name = await viewer(request, env)
+      if (path === "/api/me") return json(200, { name, page: name ? accounts(env)[name].page : null })
+      if (!name) return json(401, { error: "Log in with your passphrase first." })
+      if (path === "/api/inbox" && request.method === "POST") return sendNote(request, env, name)
+      const file = path.match(/^\/api\/inbox\/([\w-]+)\/file$/)
+      if (file && request.method === "PUT") return sendFile(request, env, name, file[1])
+      if (path === "/api/notes" && request.method === "GET") return myNotes(env, name)
+      if (path === "/api/seen" && request.method === "GET") return mySeen(env, name)
+      if (path === "/api/seen" && request.method === "POST") return markSeen(request, env, name)
+      return json(404, { error: "Not here." })
+    }
+    if (request.method !== "GET" && request.method !== "HEAD") return json(405, { error: "Only reading is possible here." })
+    const name = await viewer(request, env)
+    return page(request, env, name ? accounts(env)[name].dir : "public")
+  },
+}

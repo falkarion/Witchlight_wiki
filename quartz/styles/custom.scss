@@ -253,6 +253,22 @@ footer {
   }
 }
 
+// Both sidebars are as tall as the window and stay put: let each scroll on its own when its
+// content doesn't fit (short windows, Caelum's long tree, a long table of contents)
+@media (min-width: 801px) {
+  .left.sidebar,
+  .right.sidebar {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+
+  // the floating "Note to the DM" button sits bottom right: keep the right sidebar's end clear of it
+  body:has(.wl-inbox-open) .right.sidebar {
+    padding-bottom: 4.5rem;
+  }
+}
+
 // Sidebar unlock field
 .for-player-unlock {
   margin-top: 1rem;
@@ -310,6 +326,245 @@ footer {
   }
 }
 
+
+// The inbox: "Note to the DM" (static/for-player.js)
+.wl-inbox-open,
+.wl-inbox {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  font-size: 0.95rem;
+}
+
+.wl-inbox-open,
+.wl-inbox-send,
+.wl-answer {
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  background: var(--light);
+  color: var(--gold);
+  font-family: "Cinzel", serif;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--gold);
+    color: var(--light);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+}
+
+.wl-inbox-open {
+  padding: 0.45rem 0.9rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.wl-inbox {
+  box-sizing: border-box;
+  width: min(24rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--lightgray);
+  border-radius: 6px;
+  background: var(--light);
+  color: var(--darkgray);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    color: var(--dark);
+  }
+
+  select,
+  textarea,
+  input[type="file"] {
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--lightgray);
+    border-radius: 4px;
+    background: var(--light);
+    color: var(--darkgray);
+    font-family: inherit;
+    font-size: inherit;
+  }
+
+  textarea {
+    resize: vertical;
+  }
+}
+
+.wl-inbox-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: "Cinzel", serif;
+  font-weight: 700;
+  color: var(--dark);
+}
+
+.wl-inbox-close,
+.wl-inbox-unquote {
+  border: none;
+  background: transparent;
+  color: var(--gray);
+  cursor: pointer;
+}
+
+.wl-inbox-quote {
+  position: relative;
+  margin: 0;
+  padding: 0.3rem 1.6rem 0.3rem 0.6rem;
+  border-left: 3px solid var(--gold);
+  background: var(--highlight);
+  font-style: italic;
+  white-space: pre-wrap;
+  max-height: 8rem;
+  overflow-y: auto;
+
+  .wl-inbox-unquote {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.2rem;
+  }
+}
+
+.wl-inbox-hint,
+.wl-inbox-status {
+  color: var(--gray);
+  font-size: 0.85rem;
+}
+
+.wl-inbox-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wl-inbox-send {
+  padding: 0.3rem 0.9rem;
+}
+
+.wl-inbox-badge {
+  display: inline-block;
+  min-width: 1.2em;
+  padding: 0 0.3em;
+  border-radius: 1em;
+  background: var(--secondary);
+  color: var(--light);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.wl-inbox-tabs {
+  display: flex;
+  gap: 0.3rem;
+  border-bottom: 1px solid var(--lightgray);
+
+  button {
+    padding: 0.2rem 0.6rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--gray);
+    font-family: "Cinzel", serif;
+    font-weight: 700;
+    cursor: pointer;
+
+    &.on {
+      color: var(--dark);
+      border-bottom-color: var(--gold);
+    }
+  }
+}
+
+.wl-notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+
+  li {
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--lightgray);
+  }
+}
+
+.wl-note-meta {
+  color: var(--gray);
+  font-size: 0.8rem;
+}
+
+.wl-note-text {
+  white-space: pre-wrap;
+}
+
+.wl-note-file {
+  color: var(--gray);
+  font-size: 0.85rem;
+}
+
+.wl-note-reply {
+  margin-top: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  border-left: 3px solid var(--secondary);
+  white-space: pre-wrap;
+
+  span {
+    font-family: "Cinzel", serif;
+    font-weight: 700;
+    color: var(--secondary);
+  }
+}
+
+.wl-answer {
+  margin-left: 0.5rem;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  vertical-align: middle;
+}
+
+// Pages the player hasn't read yet: never opened, or changed since (static/for-player.js)
+.wl-new {
+  margin-left: 0.35rem;
+  color: var(--secondary);
+  font-size: 0.6rem;
+  vertical-align: middle;
+}
+
+.wl-updated {
+  margin-bottom: 1rem;
+  padding: 0.3rem 0.7rem;
+  border-left: 3px solid var(--secondary);
+  background: var(--highlight);
+  color: var(--dark);
+  font-size: 0.9rem;
+}
+
+// room under the page's last lines, so the floating button never hides them
+body:has(.wl-inbox-open) .center {
+  padding-bottom: 3.5rem;
+}
+
+@media print {
+  .wl-inbox-open,
+  .wl-inbox,
+  .wl-answer {
+    display: none;
+  }
+}
 
 // Sealed content, revealed by static/for-player.js
 .for-player:not(.revealed) {
