@@ -182,7 +182,7 @@
       }
       const justRead = visit.watch.some((x) => x.read)
       visit.watch = visit.watch.filter((x) => !x.read)
-      if (!visit.unread.size) document.querySelectorAll(".wl-link.active + .wl-new").forEach((d) => d.remove())
+      if (!visit.unread.size && justReadAll(visit)) updateUnreadCount()
       if (justRead) {
         // the label follows the reading: changes count down, and it goes once everything is read
         visit.fresh = false
@@ -196,6 +196,21 @@
     }, 500)
     visit.flusher = setInterval(() => flush(visit), 2000)
     return visit
+  }
+
+  // once per visit, when the page's last paragraph is read: its dot goes and the count drops
+  function justReadAll(visit) {
+    if (visit.allRead) return false
+    visit.allRead = true
+    document.querySelectorAll(".wl-link.active + .wl-new").forEach((d) => d.remove())
+    return true
+  }
+
+  function updateUnreadCount() {
+    const n = unreadPages().length
+    if (!n) return document.querySelectorAll(".wl-unread-bar, .wl-unread-sum").forEach((el) => el.remove())
+    document.querySelectorAll(".wl-unread-n").forEach((el) => (el.textContent = n))
+    document.querySelectorAll(".wl-unread-sum").forEach((el) => (el.textContent = `· ${n} unread`))
   }
 
   function labelFor(visit) {
@@ -382,7 +397,10 @@
     const open = new Set(read(sessionStorage, FOLD_KEY, []))
     const nav = document.createElement(mobile() ? "details" : "nav")
     nav.className = "wl-nav"
-    nav.innerHTML = `${mobile() ? "<summary>Contents</summary>" : '<div class="wl-title">Contents</div>'}
+    const unread = reg.viewer ? unreadPages().length : 0
+    nav.innerHTML = `${mobile() ? `<summary>Contents${unread ? ` <span class="wl-unread-sum">· ${unread} unread</span>` : ""}</summary>` : '<div class="wl-title">Contents</div>'}
+      ${unread ? `<div class="wl-unread-bar"><span>✦ <span class="wl-unread-n">${unread}</span> ${unread > 1 ? "pages" : "page"} not fully read</span>
+        <button type="button">Mark all as read</button></div>` : ""}
       <div class="wl-tree">${renderNodes(tree, current, open)}</div><div class="for-player-unlock">${loginHtml(reg.viewer)}</div>`
     nav.querySelectorAll(".wl-branch").forEach((li) => {
       const toggle = () => {
@@ -394,6 +412,13 @@
       }
       li.querySelector(".wl-fold").addEventListener("click", toggle)
       li.querySelector(".wl-row .wl-folder")?.addEventListener("click", toggle)
+    })
+    nav.querySelector(".wl-unread-bar button")?.addEventListener("click", async (e) => {
+      const pages = unreadPages()
+      if (!confirm(`Mark all ${pages.length} pages as read? Their dots and highlights go; only later changes show again.`)) return
+      e.target.disabled = true
+      e.target.textContent = "Marking…"
+      await markPagesRead(pages)
     })
     wireLogin(nav.querySelector(".for-player-unlock"))
     const sidebar = document.querySelector(".left.sidebar")
@@ -599,7 +624,7 @@
   // (the newest few, more on request); finished ones (folded in, closed) folded away.
   function overviewHtml(notes) {
     if (!notes) return `<div class="wl-inbox-hint">Loading…</div>`
-    if (!notes.length) return `<div class="wl-inbox-hint">No notes yet. Select text on a page and write to the DM about it.</div>` + markAllHtml()
+    if (!notes.length) return `<div class="wl-inbox-hint">No notes yet. Select text on a page and write to the DM about it.</div>`
     const slug = currentSlug()
     // answers new when the overview opened stay under "New answers" until the panel closes
     const fresh = state.freshNow || new Set(unseenAnswers(notes).map((n) => n.id))
@@ -621,12 +646,7 @@
     if (here.length) html += `<h4>On this page</h4>${list(here, 50)}`
     if (open.length) html += `<h4>Open</h4>${list(open, draft.openLimit || 5)}`
     if (finished.length) html += `<details class="wl-finished"><summary>Finished (${finished.length})</summary>${list(finished, draft.doneLimit || 10)}</details>`
-    return (html || `<div class="wl-inbox-hint">No open notes.</div>`) + markAllHtml()
-  }
-
-  function markAllHtml() {
-    const n = unreadPages().length
-    return n ? `<div class="wl-mark-all"><button type="button">✓ Mark all pages as read</button> <span>(${n} not fully read)</span></div>` : ""
+    return html || `<div class="wl-inbox-hint">No open notes.</div>`
   }
 
   function unreadPages() {
@@ -671,14 +691,6 @@
         state.notes.filter((n) => n.reply).forEach((n) => seen.add(n.id))
         write(localStorage, SEEN_KEY, [...seen])
       }
-      box.querySelector(".wl-mark-all button")?.addEventListener("click", async (e) => {
-        const pages = unreadPages()
-        if (!confirm(`Mark all ${pages.length} pages as read? Their dots and highlights go; only later changes show again.`)) return
-        e.target.disabled = true
-        e.target.textContent = "Marking…"
-        await markPagesRead(pages)
-        renderInbox(reg)
-      })
       box.querySelectorAll(".wl-more").forEach((b) =>
         b.addEventListener("click", () => {
           const inFinished = !!b.closest(".wl-finished")

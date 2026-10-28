@@ -676,9 +676,9 @@ footer {
   font-weight: 700;
 }
 
-// "✓ Mark as read" beside the label, and "Mark all pages as read" in Your notes: quiet text buttons
+// "✓ Mark as read" beside the label, and "Mark all as read" atop the contents: quiet text buttons
 .wl-mark-read,
-.wl-mark-all button {
+.wl-unread-bar button {
   margin: 0.2rem 0 0.8rem 0.5rem;
   padding: 0;
   border: none;
@@ -698,16 +698,24 @@ footer {
   }
 }
 
-.wl-mark-all {
-  margin-top: 0.8rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--lightgray);
+// atop the contents: how many pages aren't fully read, and the way to mark them all
+.wl-unread-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+  margin: 0.2rem 0 0.6rem;
   font-size: 0.8rem;
-  color: var(--gray);
+  color: var(--gold);
 
   button {
     margin: 0;
   }
+}
+
+.wl-unread-sum {
+  font-size: 0.8rem;
+  color: var(--gold);
 }
 
 button.wl-label {
