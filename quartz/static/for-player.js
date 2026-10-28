@@ -229,7 +229,7 @@
   document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && flush(state.visit, true))
 
   function showLabel(visit) {
-    document.querySelectorAll(".wl-label").forEach((el) => el.remove())
+    document.querySelectorAll(".wl-label, .wl-mark-read").forEach((el) => el.remove())
     if (!visit || !visit.label) return
     const label = document.createElement(visit.changes.length ? "button" : "span")
     label.className = "wl-label"
@@ -245,9 +245,41 @@
         el.scrollIntoView({ behavior: "smooth", block: "center" })
       })
     }
+    const mark = document.createElement("button")
+    mark.type = "button"
+    mark.className = "wl-mark-read"
+    mark.setAttribute("data-wl-ui", "")
+    mark.textContent = "✓ Mark as read"
+    mark.title = "Count this whole page as read (its dot and highlights go)"
+    mark.addEventListener("click", async () => {
+      mark.disabled = true
+      await markPagesRead([visit.slug])
+    })
     const title = document.querySelector("h1.article-title")
-    if (title) title.after(label)
-    else visit.article.prepend(label)
+    if (title) title.after(label, mark)
+    else visit.article.prepend(label, mark)
+  }
+
+  // A player can count pages as read without scrolling through them: this page (by its label),
+  // or every page at once (in "Your notes"). Every paragraph the page has counts, folded ones too.
+  async function markPagesRead(slugs) {
+    const reg = state.registry
+    for (const slug of slugs) {
+      const ids = Object.keys((reg.blocks || {})[slug] || {})
+      await api("/api/read", { slug, blocks: ids }).catch(() => {})
+      if (!state.reads[slug]) state.reads[slug] = { first: new Date().toISOString(), set: new Set() }
+      ids.forEach((id) => state.reads[slug].set.add(id))
+      const v = state.visit
+      if (v?.slug === slug) {
+        v.unread.clear()
+        v.watch = []
+        v.changes = []
+        v.label = ""
+        v.article.querySelectorAll(".wl-changed").forEach((el) => el.classList.remove("wl-changed"))
+        showLabel(v)
+      }
+    }
+    renderSidebar(reg) // the dots
   }
 
   // --- the tree -------------------------------------------------------------------------
@@ -567,7 +599,7 @@
   // (the newest few, more on request); finished ones (folded in, closed) folded away.
   function overviewHtml(notes) {
     if (!notes) return `<div class="wl-inbox-hint">Loading…</div>`
-    if (!notes.length) return `<div class="wl-inbox-hint">No notes yet. Select text on a page and write to the DM about it.</div>`
+    if (!notes.length) return `<div class="wl-inbox-hint">No notes yet. Select text on a page and write to the DM about it.</div>` + markAllHtml()
     const slug = currentSlug()
     // answers new when the overview opened stay under "New answers" until the panel closes
     const fresh = state.freshNow || new Set(unseenAnswers(notes).map((n) => n.id))
@@ -589,7 +621,17 @@
     if (here.length) html += `<h4>On this page</h4>${list(here, 50)}`
     if (open.length) html += `<h4>Open</h4>${list(open, draft.openLimit || 5)}`
     if (finished.length) html += `<details class="wl-finished"><summary>Finished (${finished.length})</summary>${list(finished, draft.doneLimit || 10)}</details>`
-    return html || `<div class="wl-inbox-hint">No open notes.</div>`
+    return (html || `<div class="wl-inbox-hint">No open notes.</div>`) + markAllHtml()
+  }
+
+  function markAllHtml() {
+    const n = unreadPages().length
+    return n ? `<div class="wl-mark-all"><button type="button">✓ Mark all pages as read</button> <span>(${n} not fully read)</span></div>` : ""
+  }
+
+  function unreadPages() {
+    const reg = state.registry
+    return Object.keys((reg && reg.blocks) || {}).filter((slug) => pageUnread(slug))
   }
 
   async function loadNotes() {
@@ -629,6 +671,14 @@
         state.notes.filter((n) => n.reply).forEach((n) => seen.add(n.id))
         write(localStorage, SEEN_KEY, [...seen])
       }
+      box.querySelector(".wl-mark-all button")?.addEventListener("click", async (e) => {
+        const pages = unreadPages()
+        if (!confirm(`Mark all ${pages.length} pages as read? Their dots and highlights go; only later changes show again.`)) return
+        e.target.disabled = true
+        e.target.textContent = "Marking…"
+        await markPagesRead(pages)
+        renderInbox(reg)
+      })
       box.querySelectorAll(".wl-more").forEach((b) =>
         b.addEventListener("click", () => {
           const inFinished = !!b.closest(".wl-finished")

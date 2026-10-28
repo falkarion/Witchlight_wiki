@@ -676,6 +676,40 @@ footer {
   font-weight: 700;
 }
 
+// "✓ Mark as read" beside the label, and "Mark all pages as read" in Your notes: quiet text buttons
+.wl-mark-read,
+.wl-mark-all button {
+  margin: 0.2rem 0 0.8rem 0.5rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--darkgray);
+  font-size: 0.8rem;
+  text-decoration: underline dotted;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--gold);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.wl-mark-all {
+  margin-top: 0.8rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--lightgray);
+  font-size: 0.8rem;
+  color: var(--gray);
+
+  button {
+    margin: 0;
+  }
+}
+
 button.wl-label {
   cursor: pointer;
 
