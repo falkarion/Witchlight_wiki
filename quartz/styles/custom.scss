@@ -53,6 +53,162 @@ body {
   background-attachment: fixed;
 }
 
+// Living sky, behind everything (fixed layers, transform/opacity only, so it stays cheap):
+//   html::before, html::after   by day cartoon clouds, near and far; by night an aurora, far and near
+//   body::before, body::after   dandelion seeds on the wind by day, near and far, each at its own pace;
+//                               by night the same drift, as stars
+// Subtle on purpose; switched off for anyone whose device asks for less motion.
+html::before,
+html::after,
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+// Depth, back to front: far clouds, small far seeds, near clouds, big near seeds
+html::before { z-index: -4; }
+body::after { z-index: -3; }
+html::after { z-index: -2; }
+body::before { z-index: -1; }
+
+// Clouds by day: cartoon clouds, far behind near, drifting right to left by exactly one tile each;
+// solid in colours faded into the parchment, so where they pass, the near one simply covers the far one
+html::before,
+html::after {
+  left: 0;
+  top: 0;
+  height: 100vh;
+}
+
+html::before {
+  width: calc(100vw + 1300px);
+  background: url("static/clouds-far.svg") repeat-x 0 0 / 1300px 800px;
+  animation: wl-clouds-far 760s linear infinite;
+}
+
+html::after {
+  width: calc(100vw + 1800px);
+  background: url("static/clouds.svg") repeat-x 0 2vh / 1800px 700px;
+  animation: wl-clouds 520s linear infinite;
+}
+
+// The aurora by night: two curtains of light hanging from the top of the sky, the far one
+// violet and teal, the near one green with fine rays; they sway, drift apart and brighten slowly
+:root[saved-theme="dark"]::before,
+:root[saved-theme="dark"]::after {
+  left: -20vw;
+  top: -34vh;
+  width: 140vw;
+  height: 100vh;
+  transform-origin: 50% 0;
+  // a last soft fade at the layer's own edges, so a sway never shows a line
+  -webkit-mask-image: linear-gradient(transparent, #000 12%, #000 80%, transparent);
+  mask-image: linear-gradient(transparent, #000 12%, #000 80%, transparent);
+}
+
+:root[saved-theme="dark"]::before {
+  background: url("static/aurora-far.svg") no-repeat 0 0 / 100% 100%;
+  animation: wl-aurora-far 200s ease-in-out infinite alternate, wl-aurora-glow 28s ease-in-out infinite alternate;
+}
+
+:root[saved-theme="dark"]::after {
+  background: url("static/aurora.svg") no-repeat 0 0 / 100% 100%;
+  animation: wl-aurora 150s ease-in-out infinite alternate, wl-aurora-glow 19s ease-in-out infinite alternate;
+}
+
+// Seeds (by day) and stars (by night): tiles that drift by exactly one tile, so the loop has
+// no seam; the near layer sways up and right, the far one rises slower, more straight up
+body::before {
+  left: -760px;
+  top: 0;
+  width: calc(100vw + 760px);
+  height: calc(100vh + 760px);
+  background: url("static/seeds.svg");
+  background-size: 760px 760px;
+  animation: wl-drift 320s linear infinite;
+}
+
+body::after {
+  left: -620px;
+  top: 0;
+  width: calc(100vw + 620px);
+  height: calc(100vh + 620px);
+  background: url("static/seeds-far.svg");
+  background-size: 620px 620px;
+  animation: wl-drift-far 460s linear infinite;
+}
+
+:root[saved-theme="dark"] body::before {
+  background: url("static/stars.svg");
+  background-size: 760px 760px;
+  animation: wl-drift 320s linear infinite, wl-glow 7s ease-in-out infinite alternate;
+}
+
+:root[saved-theme="dark"] body::after {
+  background: url("static/stars-far.svg");
+  background-size: 620px 620px;
+  animation: wl-drift-far 460s linear infinite, wl-twinkle 5s ease-in-out infinite alternate;
+}
+
+@keyframes wl-clouds {
+  to { transform: translateX(-1800px); }
+}
+@keyframes wl-clouds-far {
+  to { transform: translateX(-1300px); }
+}
+@keyframes wl-aurora {
+  0% { transform: translateX(-6vw) skewX(-6deg) scaleY(1); }
+  50% { transform: translateX(1vw) skewX(3deg) scaleY(1.12); }
+  100% { transform: translateX(7vw) skewX(-2deg) scaleY(0.95); }
+}
+@keyframes wl-aurora-far {
+  0% { transform: translateX(6vw) skewX(4deg) scaleY(1.05); }
+  50% { transform: translateX(-1vw) skewX(-3deg) scaleY(0.92); }
+  100% { transform: translateX(-7vw) skewX(5deg) scaleY(1.1); }
+}
+@keyframes wl-aurora-glow {
+  from { opacity: 0.4; }
+  to { opacity: 0.8; }
+}
+// the breeze gusts and stalls: the way across is the same, the pace isn't
+@keyframes wl-drift {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(190px, -110px); }
+  45% { transform: translate(300px, -330px); }
+  70% { transform: translate(560px, -470px); }
+  100% { transform: translate(760px, -760px); }
+}
+@keyframes wl-drift-far {
+  0% { transform: translate(0, 0); }
+  35% { transform: translate(90px, -260px); }
+  60% { transform: translate(300px, -380px); }
+  100% { transform: translate(620px, -620px); }
+}
+@keyframes wl-breathe {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}
+@keyframes wl-glow {
+  from { opacity: 0.45; }
+  to { opacity: 1; }
+}
+@keyframes wl-twinkle {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html::before,
+  html::after,
+  body::before,
+  body::after {
+    animation: none !important;
+  }
+}
+
 // Site title: a painted carnival sign
 .page-title,
 .page-title a {
