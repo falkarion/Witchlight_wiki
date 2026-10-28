@@ -154,7 +154,8 @@
     const unread = blocks.filter((b) => !r || !r.set.has(b.id))
     const changes = r ? unread.filter((b) => new Date(since[b.id] || NEVER) > new Date(r.first)) : []
     const visit = (state.visit = { slug, article, pending: new Set(), changes, unread: new Set(unread.map((b) => b.id)) })
-    visit.label = !r ? "Not read yet" : changes.length ? `${changes.length} change${changes.length > 1 ? "s" : ""}` : unread.length ? "Not fully read yet" : ""
+    visit.fresh = !r
+    visit.label = labelFor(visit)
     for (const b of changes) b.el.classList.add("wl-changed")
     api("/api/read", { slug, blocks: [] }).catch(() => {}) // records the first opening
     if (!state.reads[slug]) state.reads[slug] = { first: new Date().toISOString(), set: new Set() }
@@ -179,11 +180,29 @@
         visit.unread.delete(b.id)
         state.reads[slug].set.add(b.id)
       }
+      const justRead = visit.watch.some((x) => x.read)
       visit.watch = visit.watch.filter((x) => !x.read)
       if (!visit.unread.size) document.querySelectorAll(".wl-link.active + .wl-new").forEach((d) => d.remove())
+      if (justRead) {
+        // the label follows the reading: changes count down, and it goes once everything is read
+        visit.fresh = false
+        visit.changes = visit.changes.filter((b) => visit.unread.has(b.id))
+        const label = labelFor(visit)
+        if (label !== visit.label) {
+          visit.label = label
+          showLabel(visit)
+        }
+      }
     }, 500)
     visit.flusher = setInterval(() => flush(visit), 2000)
     return visit
+  }
+
+  function labelFor(visit) {
+    const n = visit.changes.length
+    if (!visit.unread.size) return ""
+    if (visit.fresh) return "Not read yet"
+    return n ? `${n} change${n > 1 ? "s" : ""}` : "Not fully read yet"
   }
 
   function flush(visit, leaving) {
