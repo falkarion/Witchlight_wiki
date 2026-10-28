@@ -272,33 +272,49 @@
   function showLabel(visit) {
     document.querySelectorAll(".wl-label, .wl-mark-read, .wl-steps").forEach((el) => el.remove())
     if (!visit || !visit.label) return
-    const label = document.createElement(visit.changes.length ? "button" : "span")
+    // The label leads somewhere: with changes, to them (‹ › step through them in page order, round
+    // again); when only some paragraphs aren't read yet, to those (from where the reader is now).
+    const onChanges = visit.changes.length > 0
+    const unreadEls = () => visit.watch.map((b) => b.el).filter((el) => el.isConnected)
+    const nextUnread = (d) => {
+      const els = unreadEls()
+      if (!els.length) return null
+      const mid = window.innerHeight / 2
+      const tops = els.map((el) => {
+        const box = (el.closest(".callout.is-collapsed") || el).getBoundingClientRect()
+        return box.top + box.height / 2 - mid
+      })
+      const i = d > 0 ? tops.findIndex((t) => t > 20) : tops.findLastIndex((t) => t < -20)
+      return els[i >= 0 ? i : d > 0 ? 0 : els.length - 1]
+    }
+    const stepChange = (d) => {
+      const n = visit.steps.length
+      visit.step = visit.step < 0 ? (d > 0 ? 0 : n - 1) : (visit.step + d + n) % n
+      goTo(visit.steps[visit.step])
+    }
+    const go = (d) => {
+      if (onChanges) return stepChange(d)
+      const el = nextUnread(d)
+      if (el) goTo(el)
+    }
+    const canStep = onChanges ? visit.steps.length > 0 : !visit.fresh && unreadEls().length > 0
+    const label = document.createElement(canStep ? "button" : "span")
     label.className = "wl-label"
     label.setAttribute("data-wl-ui", "")
     label.textContent = "✦ " + visit.label
-    if (visit.changes.length) {
+    if (canStep) {
       label.type = "button"
-      label.title = "Go to the first change"
-      label.addEventListener("click", () => {
-        const el = visit.changes.find((b) => b.el.isConnected)?.el
-        if (!el) return
-        visit.step = visit.steps.indexOf(el)
-        goTo(el)
-      })
+      label.title = onChanges ? "Go to the next change" : "Go to the next part you haven't read yet"
+      label.addEventListener("click", () => go(1))
     }
-    // with several changes: ‹ › step from one to the next (and round again)
     const extra = []
-    if (visit.steps.length > 1) {
+    if (onChanges ? visit.steps.length > 1 : canStep) {
+      const what = onChanges ? "change" : "unread part"
       const steps = document.createElement("span")
       steps.className = "wl-steps"
       steps.setAttribute("data-wl-ui", "")
-      steps.innerHTML = `<button type="button" title="Previous change" aria-label="Previous change">‹</button><button type="button" title="Next change" aria-label="Next change">›</button>`
+      steps.innerHTML = `<button type="button" title="Previous ${what}" aria-label="Previous ${what}">‹</button><button type="button" title="Next ${what}" aria-label="Next ${what}">›</button>`
       const [prev, next] = steps.querySelectorAll("button")
-      const go = (d) => {
-        const n = visit.steps.length
-        visit.step = visit.step < 0 ? (d > 0 ? 0 : n - 1) : (visit.step + d + n) % n
-        goTo(visit.steps[visit.step])
-      }
       prev.addEventListener("click", () => go(-1))
       next.addEventListener("click", () => go(1))
       extra.push(steps)
