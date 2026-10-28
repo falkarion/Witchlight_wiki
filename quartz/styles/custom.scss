@@ -698,6 +698,39 @@ footer {
   }
 }
 
+// ‹ › beside "N changes": step from one change to the next
+.wl-steps {
+  margin-left: 0.3rem;
+
+  button {
+    margin: 0 0.1rem;
+    padding: 0 0.45rem;
+    border: 1px solid var(--gold);
+    border-radius: 1rem;
+    background: transparent;
+    color: var(--gold);
+    font-weight: 700;
+    line-height: 1.3;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--gold);
+      color: var(--light);
+    }
+  }
+}
+
+// a paragraph a link or a step just brought into view glows for a moment
+.wl-target {
+  animation: wl-target 2.2s ease-out;
+  border-radius: 6px;
+}
+
+@keyframes wl-target {
+  0%, 30% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--gold) 45%, transparent); }
+  100% { box-shadow: 0 0 0 4px transparent; }
+}
+
 // atop the contents: how many pages aren't fully read, and the way to mark them all
 .wl-unread-bar {
   display: flex;

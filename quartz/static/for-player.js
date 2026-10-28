@@ -155,6 +155,8 @@
     const changes = r ? unread.filter((b) => new Date(since[b.id] || NEVER) > new Date(r.first)) : []
     const visit = (state.visit = { slug, article, pending: new Set(), changes, unread: new Set(unread.map((b) => b.id)) })
     visit.fresh = !r
+    visit.steps = changes.map((b) => b.el) // in page order; stepping keeps working after they're read
+    visit.step = -1
     visit.label = labelFor(visit)
     for (const b of changes) b.el.classList.add("wl-changed")
     api("/api/read", { slug, blocks: [] }).catch(() => {}) // records the first opening
@@ -243,8 +245,32 @@
   window.addEventListener("pagehide", endVisit)
   document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && flush(state.visit, true))
 
+  // Show one paragraph: unfold its passage if it's folded, bring it to the middle, glow it briefly
+  function goTo(el) {
+    el.closest(".callout.is-collapsed")?.querySelector(".callout-title")?.click()
+    el.scrollIntoView({ behavior: "smooth", block: "center" })
+    el.classList.remove("wl-target")
+    void el.offsetWidth // restart the glow
+    el.classList.add("wl-target")
+  }
+
+  // Links into a page: …#changes opens it at the reader's first change (the announce on Discord
+  // links there), …#p-<fingerprint> at that paragraph.
+  function jumpToHash(visit) {
+    const hash = location.hash
+    let el = null
+    if (hash === "#changes" && visit?.steps.length) {
+      visit.step = 0
+      el = visit.steps[0]
+    } else if (/^#p-[0-9a-f]{8}$/.test(hash)) {
+      const article = document.querySelector("article")
+      el = article && pageBlocks(article).find((b) => b.id === hash.slice(3))?.el
+    }
+    if (el) setTimeout(() => goTo(el), 300)
+  }
+
   function showLabel(visit) {
-    document.querySelectorAll(".wl-label, .wl-mark-read").forEach((el) => el.remove())
+    document.querySelectorAll(".wl-label, .wl-mark-read, .wl-steps").forEach((el) => el.remove())
     if (!visit || !visit.label) return
     const label = document.createElement(visit.changes.length ? "button" : "span")
     label.className = "wl-label"
@@ -256,9 +282,26 @@
       label.addEventListener("click", () => {
         const el = visit.changes.find((b) => b.el.isConnected)?.el
         if (!el) return
-        el.closest(".callout.is-collapsed")?.querySelector(".callout-title")?.click()
-        el.scrollIntoView({ behavior: "smooth", block: "center" })
+        visit.step = visit.steps.indexOf(el)
+        goTo(el)
       })
+    }
+    // with several changes: ‹ › step from one to the next (and round again)
+    const extra = []
+    if (visit.steps.length > 1) {
+      const steps = document.createElement("span")
+      steps.className = "wl-steps"
+      steps.setAttribute("data-wl-ui", "")
+      steps.innerHTML = `<button type="button" title="Previous change" aria-label="Previous change">‹</button><button type="button" title="Next change" aria-label="Next change">›</button>`
+      const [prev, next] = steps.querySelectorAll("button")
+      const go = (d) => {
+        const n = visit.steps.length
+        visit.step = visit.step < 0 ? (d > 0 ? 0 : n - 1) : (visit.step + d + n) % n
+        goTo(visit.steps[visit.step])
+      }
+      prev.addEventListener("click", () => go(-1))
+      next.addEventListener("click", () => go(1))
+      extra.push(steps)
     }
     const mark = document.createElement("button")
     mark.type = "button"
@@ -271,8 +314,8 @@
       await markPagesRead([visit.slug])
     })
     const title = document.querySelector("h1.article-title")
-    if (title) title.after(label, mark)
-    else visit.article.prepend(label, mark)
+    if (title) title.after(label, ...extra, mark)
+    else visit.article.prepend(label, ...extra, mark)
   }
 
   // A player can count pages as read without scrolling through them: this page (by its label),
@@ -805,6 +848,7 @@
     if (reg.viewer) visit = startVisit(reg, slug) // before anything is added to the page
     renderSidebar(reg)
     showLabel(visit)
+    jumpToHash(visit)
     answerButtons(reg)
     renderInbox(reg)
     if (reg.viewer) {
