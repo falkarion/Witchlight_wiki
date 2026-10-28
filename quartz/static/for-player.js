@@ -735,12 +735,50 @@
     }
   }
 
+  // The living sky (styles: custom.scss › Living sky): small clouds, seeds and stars, each drifting on
+  // its own path and pace. They live outside <body>, which the wiki swaps on every page change.
+  function sky() {
+    if (document.querySelector(".wl-sky")) return
+    const rnd = (a, b) => a + Math.random() * (b - a)
+    const layer = (n, cls, count, make) => {
+      const box = document.createElement("div")
+      box.className = `wl-sky wl-sky-${n}`
+      box.setAttribute("aria-hidden", "true")
+      for (let k = 0; k < count; k++) {
+        const it = make(k / count)
+        const el = document.createElement("i")
+        el.className = cls
+        el.innerHTML = "<b></b>"
+        el.style.cssText = `width:${it.w}px;height:${it.h}px;--x0:${it.x0};--y0:${it.y0};--x1:${it.x1};--y1:${it.y1};` +
+          `--d:${it.d}s;--s:${it.s}s;--delay:-${(it.d * rnd(0, 1)).toFixed(1)}s`
+        box.append(el)
+      }
+      document.documentElement.append(box)
+    }
+    // clouds cross from right to left at their own height and speed; the far ones smaller and slower
+    const cloud = (min, max, dMin, dMax) => (f) => {
+      const w = Math.round(180 * rnd(min, max))
+      const y = `${(f * 60 + rnd(0, 10)).toFixed(1)}vh`
+      return { w, h: w / 2, x0: "100vw", y0: y, x1: `-${w}px`, y1: y, d: rnd(dMin, dMax).toFixed(0), s: rnd(9, 16).toFixed(1) }
+    }
+    // seeds rise from below the page and drift up and to the right, each at its own angle
+    const mote = (min, max, dMin, dMax, sMin, sMax) => (f) => {
+      const k = rnd(min, max), x = f * 90 - 15 + rnd(0, 10)
+      return { w: Math.round(24 * k), h: Math.round(32 * k), x0: `${x.toFixed(1)}vw`, y0: "105vh",
+        x1: `${(x + rnd(25, 60)).toFixed(1)}vw`, y1: "-12vh", d: rnd(dMin, dMax).toFixed(0), s: rnd(sMin, sMax).toFixed(1) }
+    }
+    layer(1, "wl-cloud-far", 5, cloud(0.5, 0.85, 450, 700))
+    layer(2, "wl-mote", 7, mote(0.5, 0.9, 220, 380, 7, 12))
+    layer(3, "wl-cloud", 5, cloud(1.1, 1.8, 300, 460))
+    layer(4, "wl-mote", 6, mote(1.1, 2.4, 140, 260, 5, 9))
+  }
+
   document.addEventListener("nav", () => {
     lastSelection = ""
     run()
   })
-  if (document.readyState !== "loading") run()
-  else document.addEventListener("DOMContentLoaded", run)
+  if (document.readyState !== "loading") (sky(), run())
+  else document.addEventListener("DOMContentLoaded", () => (sky(), run()))
   let wasMobile = mobile()
   window.addEventListener("resize", () => {
     if (mobile() !== wasMobile) {

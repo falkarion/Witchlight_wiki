@@ -53,111 +53,93 @@ body {
   background-attachment: fixed;
 }
 
-// Living sky, behind everything (fixed layers, transform/opacity only, so it stays cheap):
-//   html::before, html::after   by day cartoon clouds, near and far; by night an aurora, far and near
-//   body::before, body::after   dandelion seeds on the wind by day, near and far, each at its own pace;
-//                               by night the same drift, as stars
-// Subtle on purpose; switched off for anyone whose device asks for less motion.
-html::before,
-html::after,
-body::before,
-body::after {
+// Living sky, behind everything. Each cloud, seed and star is its own small element drifting on its
+// own path (built by for-player.js, outside the page content), so every browser can move it smoothly;
+// big moving layers made Firefox repaint and jitter. Back to front:
+//   .wl-sky-1  far clouds        .wl-sky-2  small far seeds (stars by night)
+//   html::before  far aurora (night)   .wl-sky-3  near clouds   html::after  near aurora (night)
+//   .wl-sky-4  big near seeds (stars by night)
+// Subtle on purpose; still for anyone whose device asks for less motion.
+.wl-sky {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.wl-sky-1 { z-index: -6; }
+.wl-sky-2 { z-index: -5; }
+.wl-sky-3 { z-index: -3; }
+.wl-sky-4 { z-index: -1; }
+
+.wl-sky > i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  animation: wl-path var(--d) linear var(--delay) infinite;
+  will-change: transform;
+}
+.wl-sky > i > b {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: no-repeat center / contain;
+  animation: wl-sway var(--s) ease-in-out var(--delay) infinite alternate;
+}
+
+.wl-sky .wl-cloud > b { background-image: url("static/cloud.svg"); }
+.wl-sky .wl-cloud-far > b { background-image: url("static/cloud-far.svg"); }
+.wl-sky .wl-mote > b { background-image: url("static/seed.svg"); }
+.wl-sky-4 > i { opacity: 0.55; }
+.wl-sky-2 > i { opacity: 0.4; }
+
+// a cloud's sway is a slow bob; a seed's is a tumble
+.wl-cloud > b, .wl-cloud-far > b { --sway: translateY(6px); }
+.wl-mote > b { --sway: translateX(18px) rotate(14deg); }
+
+// by night: no clouds, the seeds become stars that glow and twinkle
+:root[saved-theme="dark"] .wl-sky-1,
+:root[saved-theme="dark"] .wl-sky-3 { display: none; }
+:root[saved-theme="dark"] .wl-sky .wl-mote > b {
+  background-image: url("static/star.svg");
+  animation: wl-sway var(--s) ease-in-out var(--delay) infinite alternate, wl-twinkle 5s ease-in-out var(--delay) infinite alternate;
+}
+:root[saved-theme="dark"] .wl-sky-4 > i { opacity: 0.9; }
+:root[saved-theme="dark"] .wl-sky-2 > i { opacity: 0.7; }
+
+// The aurora by night: two curtains of light, the far one violet and teal, the near one green with
+// fine rays; they sway, drift apart and brighten slowly
+:root[saved-theme="dark"]::before,
+:root[saved-theme="dark"]::after {
   content: "";
   position: fixed;
   pointer-events: none;
-  will-change: transform, opacity;
-}
-
-// Depth, back to front: far clouds, small far seeds, near clouds, big near seeds
-html::before { z-index: -4; }
-body::after { z-index: -3; }
-html::after { z-index: -2; }
-body::before { z-index: -1; }
-
-// Clouds by day: cartoon clouds, far behind near, drifting right to left by exactly one tile each;
-// solid in colours faded into the parchment, so where they pass, the near one simply covers the far one
-html::before,
-html::after {
-  left: 0;
-  top: 0;
-  height: 100vh;
-}
-
-html::before {
-  width: calc(100vw + 1300px);
-  background: url("static/clouds-far.svg") repeat-x 0 0 / 1300px 800px;
-  animation: wl-clouds-far 760s linear infinite;
-}
-
-html::after {
-  width: calc(100vw + 1800px);
-  background: url("static/clouds.svg") repeat-x 0 2vh / 1800px 700px;
-  animation: wl-clouds 520s linear infinite;
-}
-
-// The aurora by night: two curtains of light hanging from the top of the sky, the far one
-// violet and teal, the near one green with fine rays; they sway, drift apart and brighten slowly
-:root[saved-theme="dark"]::before,
-:root[saved-theme="dark"]::after {
   left: -20vw;
   top: -34vh;
   width: 140vw;
   height: 100vh;
   transform-origin: 50% 0;
-  // a last soft fade at the layer's own edges, so a sway never shows a line
-  -webkit-mask-image: linear-gradient(transparent, #000 12%, #000 80%, transparent);
-  mask-image: linear-gradient(transparent, #000 12%, #000 80%, transparent);
+  will-change: transform, opacity;
 }
 
 :root[saved-theme="dark"]::before {
+  z-index: -4;
   background: url("static/aurora-far.svg") no-repeat 0 0 / 100% 100%;
   animation: wl-aurora-far 200s ease-in-out infinite alternate, wl-aurora-glow 28s ease-in-out infinite alternate;
 }
 
 :root[saved-theme="dark"]::after {
+  z-index: -2;
   background: url("static/aurora.svg") no-repeat 0 0 / 100% 100%;
   animation: wl-aurora 150s ease-in-out infinite alternate, wl-aurora-glow 19s ease-in-out infinite alternate;
 }
 
-// Seeds (by day) and stars (by night): tiles that drift by exactly one tile, so the loop has
-// no seam; the near layer sways up and right, the far one rises slower, more straight up
-body::before {
-  left: -760px;
-  top: 0;
-  width: calc(100vw + 760px);
-  height: calc(100vh + 760px);
-  background: url("static/seeds.svg");
-  background-size: 760px 760px;
-  animation: wl-drift 320s linear infinite;
+@keyframes wl-path {
+  from { transform: translate(var(--x0), var(--y0)) rotate(0.01deg); }
+  to { transform: translate(var(--x1), var(--y1)) rotate(0.01deg); }
 }
-
-body::after {
-  left: -620px;
-  top: 0;
-  width: calc(100vw + 620px);
-  height: calc(100vh + 620px);
-  background: url("static/seeds-far.svg");
-  background-size: 620px 620px;
-  animation: wl-drift-far 460s linear infinite;
-}
-
-:root[saved-theme="dark"] body::before {
-  background: url("static/stars.svg");
-  background-size: 760px 760px;
-  animation: wl-drift 320s linear infinite, wl-glow 7s ease-in-out infinite alternate;
-}
-
-:root[saved-theme="dark"] body::after {
-  background: url("static/stars-far.svg");
-  background-size: 620px 620px;
-  animation: wl-drift-far 460s linear infinite, wl-twinkle 5s ease-in-out infinite alternate;
-}
-
-@keyframes wl-clouds {
-  to { transform: translateX(-1800px); }
-}
-@keyframes wl-clouds-far {
-  to { transform: translateX(-1300px); }
+@keyframes wl-sway {
+  from { transform: none; }
+  to { transform: var(--sway); }
 }
 @keyframes wl-aurora {
   0% { transform: translateX(-6vw) skewX(-6deg) scaleY(1); }
@@ -173,39 +155,17 @@ body::after {
   from { opacity: 0.4; }
   to { opacity: 0.8; }
 }
-// the breeze gusts and stalls: the way across is the same, the pace isn't
-@keyframes wl-drift {
-  0% { transform: translate(0, 0); }
-  20% { transform: translate(190px, -110px); }
-  45% { transform: translate(300px, -330px); }
-  70% { transform: translate(560px, -470px); }
-  100% { transform: translate(760px, -760px); }
-}
-@keyframes wl-drift-far {
-  0% { transform: translate(0, 0); }
-  35% { transform: translate(90px, -260px); }
-  60% { transform: translate(300px, -380px); }
-  100% { transform: translate(620px, -620px); }
-}
-@keyframes wl-breathe {
-  from { opacity: 0.7; }
-  to { opacity: 1; }
-}
-@keyframes wl-glow {
-  from { opacity: 0.45; }
-  to { opacity: 1; }
-}
 @keyframes wl-twinkle {
-  from { opacity: 0.3; }
+  from { opacity: 0.35; }
   to { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html::before,
-  html::after,
-  body::before,
-  body::after {
-    animation: none !important;
+  .wl-sky > i,
+  .wl-sky > i > b,
+  :root::before,
+  :root::after {
+    animation-play-state: paused !important;
   }
 }
 
