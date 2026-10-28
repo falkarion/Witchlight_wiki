@@ -15,7 +15,9 @@
 //   GET  /api/reads                  per page: first opened, the paragraphs read (D1: reads)
 //   POST /api/read    {slug, blocks} paragraphs that have been on the player's screen
 //   POST /api/notify  {to, text}     a Discord message from the DM's PC (inbox.py), signed with SITE_KEY
-// A new note sends the DM a Discord message; inbox.py sends players theirs (answers, new pages).
+// A new note sends the DM a Discord message; inbox.py sends players theirs (answers, new pages) and
+// posts public wiki updates in the group channel. Every hour (a cron trigger, live only) the Worker
+// checks whether the next session starts within a day and, once per session, reminds the channel.
 // Messages go out as direct messages from the campaign's private bot (DISCORD_TOKEN secret) to the
 // ids in notify.json (written by publish.py). The preview (DISCORD_ONLY_DM) sends everything to the DM.
 // The reads let the wiki mark what a player hasn't read yet, paragraph by paragraph, and let
@@ -101,8 +103,8 @@ const clip = (s, n) => (typeof s === "string" ? s.slice(0, n) : "")
 // --- Discord: a direct message from the bot ("dm" or a player's name)
 async function discord(env, to, text) {
   if (!env.DISCORD_TOKEN) return "no DISCORD_TOKEN on this site"
-  let id = to === "dm" ? notify.dm : notify.players?.[to]
-  if (env.DISCORD_ONLY_DM && to !== "dm") [id, text] = [notify.dm, `*(preview, for ${to})* ${text}`]
+  let id = to === "dm" ? notify.dm : to === "channel" ? notify.channel : notify.players?.[to]
+  if (env.DISCORD_ONLY_DM && to !== "dm") [id, text] = [notify.dm, `*(preview, for ${to === "channel" ? "the group channel" : to})* ${text}`]
   if (!id) return `no Discord id for ${to}`
   const api = (path, body) => fetch(`https://discord.com/api/v10${path}`, {
     method: "POST",
@@ -111,6 +113,10 @@ async function discord(env, to, text) {
       "user-agent": "DiscordBot (https://witchlight.falklab.workers.dev, 1.0)" },
     body: JSON.stringify(body),
   })
+  if (to === "channel" && !env.DISCORD_ONLY_DM) {
+    const sent = await api(`/channels/${id}/messages`, { content: text.slice(0, 1900), allowed_mentions: { parse: [] } })
+    return sent.ok ? "sent" : `Discord refused the channel post (${sent.status}): ${(await sent.text()).slice(0, 300)}`
+  }
   const open = await api("/users/@me/channels", { recipient_id: id })
   const raw = await open.text()
   const channel = (() => { try { return JSON.parse(raw) } catch { return null } })()
@@ -132,7 +138,7 @@ async function notifyFromDM(request, env, ctx) {
   const body = await request.text()
   if (!same(request.headers.get("x-signature") || "", await hmac(env.SITE_KEY, body))) return json(403, { error: "Not signed." })
   const m = JSON.parse(body)
-  if (m.to !== "dm" && !notify.players?.[m.to]) return json(404, { error: "No such player." })
+  if (m.to !== "dm" && m.to !== "channel" && !notify.players?.[m.to]) return json(404, { error: "No such player." })
   // the DM's PC waits for Discord's answer, so inbox.py can say why a message didn't go out
   return json(200, { result: await discord(env, m.to, clip(m.text, 1900)) })
 }
@@ -278,7 +284,39 @@ async function page(request, env, dir) {
   return out
 }
 
+// --- the session reminder: the next session's start (campaign note, local time in the DM's zone)
+const ZONE = "Europe/Amsterdam"
+
+function zonedToUtc(local) {
+  // "2026-11-14 10:00" in ZONE -> a Date; the zone's offset at that moment (summer or winter time)
+  const m = /^(\d{4})-(\d\d)-(\d\d)[ T](\d\d):(\d\d)/.exec(local || "")
+  if (!m) return null
+  const guess = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5])
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: ZONE, hourCycle: "h23", year: "numeric",
+    month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(guess)).map((x) => [x.type, x.value]))
+  const shown = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute)
+  return new Date(guess - (shown - guess))
+}
+
+async function remind(env) {
+  const start = zonedToUtc(notify.next_session)
+  if (!start || !notify.channel) return "no session date or channel"
+  const left = start - Date.now()
+  if (left <= 0 || left > 24 * 3600 * 1000) return "not within a day"
+  const key = `reminded:${notify.next_session}`
+  if (await env.FILES.get(key)) return "already reminded"
+  const time = notify.next_session.slice(11, 16)
+  const day = new Intl.DateTimeFormat("en-GB", { timeZone: ZONE, weekday: "long" }).format(start)
+  const result = await discord(env, "channel", `🎪 **${notify.campaign || "Our game"}**: next session ${day} at ${time}. See you there!`)
+  if (result === "sent") await env.FILES.put(key, new Date().toISOString())
+  return result
+}
+
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(remind(env))
+  },
+
   async fetch(request, env, ctx) {
     const url = new URL(request.url)
     const path = url.pathname

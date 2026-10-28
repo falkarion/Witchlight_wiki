@@ -24,10 +24,15 @@ id = "93a83f8cacff428ab6342b7ff45f01f9"
 # The preview: the same builds at witchlight-preview.falklab.workers.dev, to check before publishing.
 # Its own inbox (test notes never reach the real one) and a test login (TEST_LOGIN secret, only here).
 # Deploy: npx.cmd wrangler deploy --env preview   Set up once: python ../Vault/.tools/inbox.py setup --preview
+# the hourly check for the session reminder (Worker: scheduled)
+[triggers]
+crons = ["0 * * * *"]
+
 [env.preview]
 name = "witchlight-preview"
 workers_dev = true
 vars = { TEST_DIR = "tester", DISCORD_ONLY_DM = "1" }
+triggers = { crons = [] }
 
 [env.preview.assets]
 directory = "./dist"
